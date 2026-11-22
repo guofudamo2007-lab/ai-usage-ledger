@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>刻度 · AI 用量账本</title>
+    <link rel="icon" href="/mark.svg" />
+    <link rel="preload" href="/fonts/IBMPlexMono-Medium.ttf" as="font" type="font/ttf" crossorigin />
+    <link rel="stylesheet" href="/vendor/components.css" />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <header class="mast">
+      <div class="mast-inner">
+        <a class="brand" href="/" aria-label="刻度，返回总览">
+          <img src="/mark.svg" width="39" height="39" alt="" />
+          <span class="brand-type"><b>刻度</b><small>AI 用量账本</small></span>
+        </a>
+        <nav aria-label="主导航">
+          <button data-nav="home"><i data-icon="chart"></i>用量总览</button
+          ><button data-nav="book"><i data-icon="book"></i>产出账本</button
+          ><button data-nav="sources"><i data-icon="db"></i>数据接入</button>
+        </nav>
+        <span class="local"><b></b>本地运行</span>
+      </div>
+    </header>
+    <main id="main" tabindex="-1">
+      <div class="initial">正在读取本地账本…</div>
+    </main>
+    <div class="toast" role="status" id="toast" hidden></div>
+    <dialog id="modal"><div id="modal-content"></div></dialog>
+    <script src="/vendor/uplot.js"></script>
+    <script src="/vendor/tom-select.js"></script>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

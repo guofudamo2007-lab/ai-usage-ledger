@@ -1,0 +1,14 @@
+private/
+runtime/
+release/
+.qa/
+.venv/
+exports/
+__pycache__/
+*.pyc
+*.sqlite*
+*.db
+*.db-wal
+*.db-shm
+*.jsonl
+*.jsonl.zst

@@ -1,0 +1,9 @@
+* text=auto eol=lf
+*.cmd text eol=crlf
+*.png binary
+*.webp binary
+*.ttf binary
+web/vendor/*.js -text
+web/vendor/*.css -text
+web/vendor/*.svg -text
+web/vendor/licenses/* -text
