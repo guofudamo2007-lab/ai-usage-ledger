@@ -120,7 +120,7 @@ class WidgetRefreshTests(unittest.TestCase):
                 res = conn.getresponse()
                 self.assertEqual(res.status, 200)
                 res.read()
-                srv.job.maybe_start.assert_called_once_with(min_gap=8.0)
+                srv.job.maybe_start.assert_not_called()
 
                 conn.request("GET", "/api/widget?period=quota&tz=Asia%2FShanghai")
                 res = conn.getresponse()
@@ -181,3 +181,20 @@ class WidgetRefreshTests(unittest.TestCase):
                 self.assertTrue(file.exists())
                 self.assertTrue(any(c.kwargs.get("stop") for c in request.call_args_list))
                 self.assertTrue(server.serve_forever.called)
+
+    def test_widget_reuses_snapshot_until_prices_change(self):
+        from contextlib import closing
+        with tempfile.TemporaryDirectory() as folder:
+            file = Path(folder) / "ledger.sqlite3"
+            initialize(file)
+            with app.LocalServer(("127.0.0.1", 0), app.Handler) as server, closing(app.connect(file)) as db:
+                with patch.object(app.query, "view", wraps=app.query.view) as view:
+                    first = server.widget_view(db, "today", "UTC")
+                    self.assertIs(first, server.widget_view(db, "today", "UTC"))
+                    server.widget_view(db, "week", "UTC")
+                    server.widget_view(db, "today", "Asia/Tokyo")
+                    self.assertEqual(view.call_count, 3)
+                    app.pricing.write_override(db, dict(model="fixture", input=1, output=1, cache_write=1, cache_read=0))
+                    updated = server.widget_view(db, "today", "UTC")
+                    self.assertGreater(updated["revision"], first["revision"])
+                    self.assertEqual(view.call_count, 4)

@@ -306,16 +306,14 @@ class Handler(BaseHTTPRequestHandler):
                     ]
                     data["syncing"] = qjob.snapshot()["running"] if qjob is not None else False
                 else:
-                    if getattr(self.server, "auto_sync", False):
-                        self.server.job.maybe_start(min_gap=8.0)
-                    view = query.view(db, {"period": period, "tz": args.get("tz", "UTC")})
+                    view = self.server.widget_view(db, period, args.get("tz", "UTC"))
                     data.update(
                         totals=view["totals"],
                         top=next((r["model"] for r in view["rank"] if r["total"] is not None), None),
                         scope=view["scope"],
                         value=view["totals"].get("value"),
                         value_n=view["totals"].get("value_n", 0),
-                        revision=query.revision(db),
+                        revision=view["revision"],
                         syncing=self.server.job.snapshot()["running"],
                     )
                 return self.send_json(data)
@@ -397,6 +395,28 @@ class Handler(BaseHTTPRequestHandler):
 
 
 class LocalServer(ThreadingHTTPServer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.widget_views = {}
+        self.widget_lock = threading.Lock()
+
+    def widget_view(self, db, period, tz):
+        if period not in ("today", "week"):
+            raise ValueError("未知小组件时间范围")
+        args = {"period": period, "tz": tz}
+        with self.widget_lock:
+            day = query.scope(args)[4]
+            key = (period, tz, day)
+            cached = self.widget_views.get(key)
+            if cached is None or cached["revision"] != query.revision(db):
+                cached = query.view(db, args)
+                # Only keep a result under the date actually used by the query.
+                if cached["scope"]["last"] == day.isoformat():
+                    if key not in self.widget_views and len(self.widget_views) >= 8:
+                        self.widget_views.pop(next(iter(self.widget_views)))
+                    self.widget_views[key] = cached
+            return cached
+
     def server_bind(self):
         # Windows SO_REUSEADDR can let two ledgers listen on the same port.
         if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
@@ -477,7 +497,7 @@ def serve(args, file):
 
         def periodic():
             while True:
-                server.job.start()
+                server.job.maybe_start(min_gap=8.0)
                 time.sleep(30)
 
         threading.Thread(target=periodic, daemon=True).start()
@@ -500,6 +520,7 @@ if __name__ == "__main__":
     parser.add_argument("--codex-home", type=Path, help="为指定 Codex 配置目录打开独立账本，仅采集该目录的 Codex 用量")
     parser.add_argument("--port", type=int, default=PORT)
     parser.add_argument("--no-browser", action="store_true")
+    parser.add_argument("--windowless", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--widget", action="store_true", help="打开桌面小组件")
     parser.add_argument("--no-sync", action="store_true", help="仅浏览数据库，暂停后台采集")
     parser.add_argument("--collect", action="store_true", help="更新统计后退出")
@@ -515,4 +536,11 @@ if __name__ == "__main__":
         prepare_database(file, args.codex_home)
         print(json.dumps(sync(file), ensure_ascii=False))
     else:
-        serve(args, file)
+        try:
+            serve(args, file)
+        except (Exception, SystemExit) as err:
+            if not args.windowless:
+                raise
+            import ctypes
+            ctypes.windll.user32.MessageBoxW(None, str(err), "刻度 · 启动失败", 0x10)
+            raise SystemExit(1) from None

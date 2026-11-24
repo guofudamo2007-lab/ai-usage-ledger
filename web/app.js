@@ -55,6 +55,7 @@ let detailFilters = false,
   lastFinished,
   chartObserver;
 let shown = null, shownKey = "", knownRevision = null, lastDay = "";
+let displayedKey = "", retryView = false;
 const views = new Map();
 const pendingViews = new Map();
 // Keep a few bounded, already rendered rankings for repeated sort and scope switches.
@@ -329,7 +330,7 @@ function updateJob() {
       ? (job.files
           ? `正在读取 ${registry.entries[job.entry] || "本机来源"} · 第 ${job.done + 1} / ${job.files} 份`
           : `正在查找 ${registry.entries[job.entry] || "本机来源"} 的文件…`)
-      : job.error || "打开账本时自动更新，运行期间每 5 分钟检查一次。";
+      : job.error || "打开账本时自动更新，运行期间约每 30 秒检查一次。";
   }
 }
 function schedule(ms = 15000) {
@@ -339,14 +340,15 @@ function schedule(ms = 15000) {
 async function poll() {
   try {
     job = await api("/api/status");
+    if (knownRevision != null && job.revision < knownRevision) knownRevision = null;
     const changed = revised(job.revision);
     const finished = lastFinished !== undefined && job.finished !== lastFinished;
     lastFinished = job.finished;
     const day = timeAt(new Date(), state.tz, true);
     const rollover = lastDay && lastDay !== day;
     lastDay = day;
-    if (changed) await loadOptions();
-    if (!$("dialog").open && ((state.tab === "home" && (changed || rollover || (shown && !shownKey))) ||
+    if (changed || !registry.version) await loadOptions();
+    if (!$("dialog").open && !main.hasAttribute("aria-busy") && (retryView || (state.tab === "home" && (changed || rollover || (shown && !shownKey))) ||
         (state.tab === "sources" && (changed || finished)))) await render();
     updateJob();
   } catch {
@@ -657,6 +659,7 @@ async function render() {
     el.setAttribute("aria-current", el.dataset.nav === t ? "page" : "false");
   }
   selectSegment("period", state.period);
+  main.setAttribute("aria-busy","true");
   try {
     if (t === "home") {
       if (!groups.some(([v]) => v === state.group)) state.group = "model";
@@ -664,23 +667,25 @@ async function render() {
       const {query, key} = queryKey();
       let data = views.get(key);
       if (!data) {
-        main.setAttribute("aria-busy","true");
-        if ($("#view-body")) $("#view-body").inert = true;
-        if ($(".page-head .export")) $(".page-head .export").inert = true;
+        if (key !== displayedKey) {
+          if ($("#view-body")) $("#view-body").inert = true;
+          if ($(".page-head .export")) $(".page-head .export").inert = true;
+        }
         data = await fetchView(key, query);
         if (serial !== version) return;
-        if (knownRevision != null && data.revision < knownRevision) return render();
         if (revised(data.revision)) {
           await loadOptions();
           if (serial !== version) return;
         }
       }
+      const current = data.revision === knownRevision;
       views.delete(key);
-      views.set(key, data);
+      if (current) views.set(key, data);
       if (views.size > 8) views.delete(views.keys().next().value);
       shown = data;
-      shownKey = key;
+      shownKey = current ? key : "";
       draw(data);
+      displayedKey = key;
       $("#view-body").inert = false;
     } else if (t === "sources") {
       const rows = await api("/api/sources");
@@ -701,6 +706,7 @@ async function render() {
           await render();
         },
       });
+      displayedKey = "";
       updateJob();
     } else {
       const q = new URLSearchParams(Object.entries(state).filter(([k])=>k.startsWith("book_")).map(([k,v])=>[k.slice(5),v]));
@@ -717,21 +723,29 @@ async function render() {
         navigate,
         refresh: render,
       });
+      displayedKey = "";
     }
+    retryView = false;
   } catch (err) {
     if (serial === version) {
+      retryView = true;
+      if (t === "home" && displayedKey === queryKey().key && $("#view-body")) {
+        job = {...job, error:"当前范围刷新失败，保留上次读取的数据，将自动重试"};
+        $("#view-body").inert = false;
+        if ($(".page-head .export")) $(".page-head .export").inert = false;
+        updateJob();
+        return;
+      }
+      displayedKey = "";
       chartObserver?.disconnect();
       chartObserver = null;
       disposeSelects(main);
       main.innerHTML = empty(
         "未能读取这个视图",
         err.message,
-        '<button class="primary" id="retry">回到默认总览</button>',
+        '<button class="primary" id="retry">重试当前视图</button>',
       );
-      $("#retry").onclick = () => {
-        state = { ...defaultState };
-        navigate({});
-      };
+      $("#retry").onclick = render;
     }
   } finally {
     if (serial === version) main.removeAttribute("aria-busy");

@@ -104,7 +104,8 @@ export function toast(msg) {
   toastTimer = setTimeout(() => (el.hidden = true), 5500);
 }
 export async function api(path, options) {
-  const res = await fetch(path, options);
+  const res = await fetch(path, options?.method === "POST" ? options :
+    {signal: AbortSignal.timeout(45000), ...options});
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "读取失败，请稍后重试");
   return data;

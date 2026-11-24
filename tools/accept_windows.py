@@ -126,6 +126,14 @@ def run(folder):
             page.locator("[data-period=today]").click()
             page.locator("[data-period=all]").click()
             page.locator(".name-btn").first.wait_for()
+            # A failed background refresh must preserve the visible scope and recover unattended.
+            page.route("**/api/view?*", lambda route: route.abort(), times=1)
+            price = dict(model="fixture-refresh", input=1, output=1, cache_read=0, cache_write=1)
+            response = page.request.post(base + "/api/pricing", data=price, headers={"X-Ledger-Local": "1"})
+            assert response.ok
+            expect(page.locator("#health-warning")).to_contain_text("保留上次读取的数据", timeout=22000)
+            expect(page.locator(".name-btn").first).to_contain_text("gpt-fictional")
+            expect(page.locator("#health-warning")).not_to_contain_text("上次读取的数据", timeout=22000)
             page.locator("#show-breakdown").click()
             page.locator("[data-missing=cache_read]").click()
             expect(page.locator(".rank-qty")).to_contain_text("1/1")

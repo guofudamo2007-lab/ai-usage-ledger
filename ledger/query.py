@@ -230,10 +230,10 @@ def view(db, args):
     if group not in dims or sort not in ("total", "output", "net", "value"):
         raise ValueError("未知分组或排序方式")
     detail = args.get("detail") == "1"
-    overrides = pricing.read_overrides(db)
     with db:
         db.execute("BEGIN")
         rev = revision(db)
+        overrides = pricing.read_overrides(db)
         edges = [
             db.execute(
                 f"SELECT ts FROM ledger_events{where} ORDER BY ts {direction} LIMIT 1", params

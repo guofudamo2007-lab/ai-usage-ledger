@@ -43,8 +43,9 @@ namespace Meter {
         [STAThread] public static void Main(string[] args) {
             int port;
             string root = AppDomain.CurrentDomain.BaseDirectory;
-            if (args.Length == 0) {
-                var start = new ProcessStartInfo(Path.Combine(root,"runtime","python.exe"),"-B -X utf8 ledger_app.py --widget");
+            if (args.Length == 0 || (args.Length==1 && args[0]=="--ledger")) {
+                string launchArgs="-B -X utf8 ledger_app.py --windowless"+(args.Length==0?" --widget":"");
+                var start = new ProcessStartInfo(Path.Combine(root,"runtime","python.exe"),launchArgs);
                 start.WorkingDirectory=root; start.UseShellExecute=false; start.CreateNoWindow=true;
                 try { Process.Start(start); } catch(Exception e) { MessageBox.Show(e.Message,"刻度"); }
                 return;
@@ -344,12 +345,15 @@ namespace Meter {
             stamp.Text=period=="quota"?"剩余额度 · 更新中…":zone+" · 同步中…";
             if(!followTimer.IsEnabled)followTimer.Start();
             try {
-                using(var client=new WebClient()){
+                using(var client=new WebClient())
+                using(var timeout=new CancellationTokenSource(TimeSpan.FromSeconds(20)))
+                using(timeout.Token.Register(client.CancelAsync)){
                     client.Proxy=null;client.Encoding=System.Text.Encoding.UTF8;
                     client.Headers["X-Ledger-Local"]="1";
                     await client.UploadStringTaskAsync(origin+"/api/widget/refresh?period="+period,"POST","");
                 }
-            } catch(WebException) {
+            } catch(Exception err) {
+                if(!(err is WebException || err is OperationCanceledException)) throw;
                 followTimer.Stop();
                 stamp.Text="刷新请求失败 · 可再试一次";
                 refreshGlyph.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty,"sub");
@@ -363,7 +367,12 @@ namespace Meter {
             int ticket=++serial;
             try {
                 string raw;
-                using(var client=new WebClient()){client.Proxy=null;client.Encoding=System.Text.Encoding.UTF8;raw=await client.DownloadStringTaskAsync(origin+"/api/widget?period="+period+"&tz="+Uri.EscapeDataString(zone));}
+                using(var client=new WebClient())
+                using(var timeout=new CancellationTokenSource(TimeSpan.FromSeconds(30)))
+                using(timeout.Token.Register(client.CancelAsync)){
+                    client.Proxy=null;client.Encoding=System.Text.Encoding.UTF8;
+                    raw=await client.DownloadStringTaskAsync(origin+"/api/widget?period="+period+"&tz="+Uri.EscapeDataString(zone));
+                }
                 if(ticket!=serial)return;
                 if(raw==lastRaw && displayedPeriod==period)return;
                 lastRaw=raw;
