@@ -2,7 +2,12 @@
 
 在 Windows 本机核对不同厂商、入口和模型的实际 Token 用量。选好日期和统计时区，就能从每日趋势和模型排行一路查到原始用量记录。项目、费用、额度和产出也可以留在本机。
 
-**视频演示版 · Windows x64 · 1.7-preview** 自带运行环境。下载 ZIP 并完整解压到可写目录，双击 **启动账本.cmd**。桌面小组件可从主界面右上角打开。[直接下载视频同款便携包](https://github.com/guofudamo2007-lab/ai-usage-ledger/releases/download/v1.7-preview/Meter-1.7-preview-Windows-x64.zip) · [预发行说明与 SHA-256](https://github.com/guofudamo2007-lab/ai-usage-ledger/releases/tag/v1.7-preview) · [使用与升级说明](使用说明.md)
+## Windows x64 下载
+
+- **[下载原版便携包（ZIP）](https://github.com/guofudamo2007-lab/ai-usage-ledger/releases/download/v1.7-preview/Meter-1.7-preview-Windows-x64.zip)** · **1.7-preview**　想用视频同款，或继续使用已有账本，选原版。完整解压到可写目录，双击 `启动账本.cmd`。[使用与升级说明](使用说明.md)
+- **[下载 Rust 单文件版（EXE）](https://github.com/guofudamo2007-lab/ai-usage-ledger/releases/download/rust-v0.1.0-preview/Kedu-Rust-Windows-x64.exe)** · **0.1.0 预览版**　想只下载一个文件、双击就用，选 Rust 版。把 EXE 放进可写目录即可，无需安装 Rust 或 Python，也带桌面小组件。[Rust 版使用说明](native/README.md)
+
+**两版可以同时运行，账本各自独立。** 原版默认保存在 `private/`，Rust 版保存在 EXE 旁的 `rust-private/`。Rust 版首次启动会重新采集本机仍可读取的日志。只留在原账本里的历史、手工账目、自定义单价和更正记录不会自动迁入或同步。
 
 ![刻度总览，图中模型、项目与用量均为虚构演示数据](docs/overview-fictional.png)
 
@@ -33,9 +38,9 @@
 
 输入包含可确认的缓存读写，输出包含可确认的推理。缺失字段显示为「—」，部分覆盖会列出已知条数。相同请求的重复导入可以补全缺失字段。剔除缓存读取的排行只使用总量与缓存读取均已知的记录。[字段口径与虚构格式示例](使用说明.md#计数与去重)
 
-服务绑定本机回环地址。SQLite 数据库保存在程序目录的 `private/ledger.sqlite3`，保存统计字段、项目标签、采集进度、去重标识和手工账目。备份时关闭本地服务，复制整个 `private` 目录即可。[备份与迁移说明](使用说明.md#保存备份与迁移)
+服务绑定本机回环地址。SQLite 账本保存统计字段、项目标签、采集进度、去重标识和手工账目。备份时，先关闭对应版本的本地服务，再复制它的整个数据目录（原版 `private/`，Rust 版 `rust-private/`）。[原版备份与迁移说明](使用说明.md#保存备份与迁移)
 
-## 从源码运行
+## 从源码运行原版
 
 在装有 **Windows x64 CPython 3.14** 的机器上，从仓库根目录执行。前端资源已随源码提供。
 
