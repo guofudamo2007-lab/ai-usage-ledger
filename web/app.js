@@ -319,12 +319,16 @@ function updateJob() {
   const el = $("#sync");
   if (el) {
     el.disabled = !!job.running;
-    $("span", el).textContent = job.running ? "正在采集" : "更新用量";
+    $("span", el).textContent = job.running
+      ? (job.files ? `采集 ${job.done + 1}/${job.files}` : "查找来源…")
+      : "更新用量";
   }
   const detail = $("#sync-status");
   if (detail) {
     detail.textContent = job.running
-      ? `正在读取 ${registry.entries[job.entry] || "本机来源"} · ${job.done || 0} / ${job.files || 0} 份`
+      ? (job.files
+          ? `正在读取 ${registry.entries[job.entry] || "本机来源"} · 第 ${job.done + 1} / ${job.files} 份`
+          : `正在查找 ${registry.entries[job.entry] || "本机来源"} 的文件…`)
       : job.error || "打开账本时自动更新，运行期间每 5 分钟检查一次。";
   }
 }

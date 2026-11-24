@@ -24,6 +24,7 @@ from ledger.imports import import_file, undo
 
 ROOT = Path(__file__).resolve().parent
 PORT = 17863
+VERSION = "1.7-preview"
 STATIC = {
     "/": ("index.html", "text/html"),
     "/style.css": ("style.css", "text/css"),
@@ -184,7 +185,7 @@ class Handler(BaseHTTPRequestHandler):
                 threading.Thread(target=self.server.shutdown, daemon=True).start()
                 return
         if not write and path == "/api/instance":
-            return self.send_json({"app": "meter", "version": "1.7-preview", "instance": self.server.identity})
+            return self.send_json({"app": "meter", "version": VERSION, "instance": self.server.identity})
         with closing(connect(self.server.job.file)) as db:
             if path == "/api/appearance":
                 prefs = appearance.write(db, json.loads(body)) if write else appearance.read(db)
@@ -295,6 +296,25 @@ class LocalServer(ThreadingHTTPServer):
         super().server_bind()
 
 
+def local_request(port, path, *, stop=False):
+    conn = HTTPConnection("127.0.0.1", port, timeout=2)
+    try:
+        conn.request("POST" if stop else "GET", path, body=b"" if stop else None,
+                     headers={"X-Ledger-Local": "1"} if stop else {})
+        response = conn.getresponse()
+        return json.loads(response.read(65536)) if response.status == 200 else {}
+    finally:
+        conn.close()
+
+
+def prepare_database(file, profile):
+    initialize(file)
+    if profile:
+        with closing(connect(file)) as db, db:
+            codex_search.save(db, "home", str(profile.resolve()))
+            codex_search.save(db, "codex_only", True)
+
+
 def serve(args, file):
     identity = digest("meter-install", str(file.resolve()))
     for port in range(args.port, args.port + 16):
@@ -302,23 +322,46 @@ def serve(args, file):
             server = LocalServer(("127.0.0.1", port), Handler)
             break
         except OSError:
-            conn = HTTPConnection("127.0.0.1", port, timeout=0.8)
             try:
-                conn.request("GET", "/api/instance")
-                reply = json.loads(conn.getresponse().read(512))
-                if reply.get("instance") == identity:
-                    if args.widget:
-                        open_widget(port, file)
-                    elif not args.no_browser:
-                        webbrowser.open(f"http://127.0.0.1:{port}/")
-                    print(f"账本已运行 http://127.0.0.1:{port}/")
-                    return
-            except (ValueError, OSError, AttributeError, HTTPException):
-                pass
-            finally:
-                conn.close()
+                reply = local_request(port, "/api/instance")
+            except (ValueError, OSError, HTTPException):
+                continue
+            if not isinstance(reply, dict) or reply.get("app") != "meter" or reply.get("instance") != identity:
+                continue
+            if reply.get("version") == VERSION:
+                if args.widget:
+                    open_widget(port, file)
+                elif not args.no_browser:
+                    webbrowser.open(f"http://127.0.0.1:{port}/")
+                print(f"账本已运行 http://127.0.0.1:{port}/")
+                return
+            hint = "同一账本有其他版本正在运行。请关闭旧服务窗口，再重新启动。"
+            if reply.get("version") != "1.6":
+                raise SystemExit(hint)
+            try:
+                if local_request(port, "/api/status").get("running") is not False:
+                    raise SystemExit("旧版仍在采集。请等它结束后重新启动新版。")
+                if not local_request(port, "/api/stop", stop=True).get("ok"):
+                    raise SystemExit(hint)
+            except (OSError, ValueError, AttributeError, HTTPException):
+                raise SystemExit(hint) from None
+            for _ in range(50):
+                time.sleep(0.1)
+                try:
+                    server = LocalServer(("127.0.0.1", port), Handler)
+                    break
+                except OSError:
+                    continue
+            else:
+                raise SystemExit(hint)
+            break
     else:
         raise SystemExit("本机端口均被占用，可使用 --port 选择其他端口。")
+    try:
+        prepare_database(file, args.codex_home)
+    except BaseException:
+        server.server_close()
+        raise
     server.identity, server.job = identity, Collector(file)
     if not args.no_sync:
 
@@ -358,12 +401,8 @@ if __name__ == "__main__":
             parser.error("Codex 配置目录不存在")
         directory = directory / "codex-profiles" / digest("codex-home", str(profile).casefold())
     file = directory / "ledger.sqlite3"
-    initialize(file)
-    if args.codex_home:
-        with closing(connect(file)) as db, db:
-            codex_search.save(db, "home", str(profile))
-            codex_search.save(db, "codex_only", True)
     if args.collect:
+        prepare_database(file, args.codex_home)
         print(json.dumps(sync(file), ensure_ascii=False))
     else:
         serve(args, file)

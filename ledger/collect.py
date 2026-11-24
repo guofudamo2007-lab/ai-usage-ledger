@@ -424,6 +424,7 @@ def sync(file, progress=lambda **kwargs: None, roots=None):
         if roots is None and codex_search.setting(db, "codex_only", False):
             selected = {"codex": selected["codex"]}
         for entry, dirs in selected.items():
+            progress(entry=entry, done=0, files=0)
             present = False
             paths, details = [], []
             added = skipped = failures = readable = 0
