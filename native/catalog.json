@@ -1,0 +1,1413 @@
+{
+ "entries": {
+  "agy": [
+   "Antigravity",
+   "Google",
+   "auto",
+   "本机会话库 · 调用与步骤元数据"
+  ],
+  "agy-shared": [
+   "Antigravity · 多处发现",
+   "Google",
+   "derived",
+   "同一请求出现在多个入口，实际入口未确认"
+  ],
+  "agy-cli": [
+   "Antigravity CLI",
+   "Google",
+   "auto",
+   "本机 CLI 会话库 · 调用与步骤元数据"
+  ],
+  "agy-ide": [
+   "Antigravity IDE",
+   "Google",
+   "auto",
+   "本机 IDE 会话库 · 调用与步骤元数据"
+  ],
+  "codex": [
+   "Codex",
+   "OpenAI",
+   "auto",
+   "本机 rollout · JSONL / Zstandard"
+  ],
+  "openai-api": [
+   "OpenAI API",
+   "OpenAI",
+   "import",
+   "逐请求 Responses / Chat Completions 或标准明细"
+  ],
+  "gemini-api": [
+   "Gemini API",
+   "Google",
+   "import",
+   "逐请求 GenerateContent 或标准明细"
+  ],
+  "ai-studio": [
+   "Google AI Studio",
+   "Google",
+   "import",
+   "含请求标识、时间及实测 usage 的导出"
+  ],
+  "claude-api": [
+   "Claude API",
+   "Anthropic",
+   "import",
+   "逐请求 Messages 或标准明细"
+  ],
+  "grok-api": [
+   "Grok API",
+   "xAI",
+   "import",
+   "标准逐请求 JSON / CSV"
+  ],
+  "kimi-api": [
+   "Kimi API",
+   "Moonshot AI",
+   "import",
+   "标准逐请求 JSON / CSV"
+  ],
+  "chatgpt-web": [
+   "ChatGPT 网页",
+   "OpenAI",
+   "manual",
+   "手填费用、额度或产出"
+  ],
+  "gemini-web": [
+   "Gemini 网页",
+   "Google",
+   "manual",
+   "手填费用、额度或产出"
+  ],
+  "claude-web": [
+   "Claude 网页",
+   "Anthropic",
+   "manual",
+   "手填费用、额度或产出"
+  ],
+  "grok-web": [
+   "Grok 网页",
+   "xAI",
+   "manual",
+   "手填费用、额度或产出"
+  ],
+  "kimi-web": [
+   "Kimi 网页",
+   "Moonshot AI",
+   "manual",
+   "手填费用、额度或产出"
+  ],
+  "prism": [
+   "Obsidian Prism 汇总",
+   "Google",
+   "none",
+   "与 AGY 原始记录重叠，仅供外部对账"
+  ]
+ },
+ "presets": {
+  "ink": {
+   "name": "墨与铜",
+   "dark": [
+    "#E79B69",
+    "#171719",
+    "#F2EEE8"
+   ],
+   "light": [
+    "#A65027",
+    "#F5F1EB",
+    "#302B28"
+   ]
+  },
+  "graphite": {
+   "name": "石墨蓝",
+   "dark": [
+    "#89ACFA",
+    "#18191B",
+    "#EDEEF0"
+   ],
+   "light": [
+    "#0169CC",
+    "#FAFAFA",
+    "#15171A"
+   ]
+  },
+  "plum": {
+   "name": "暮紫",
+   "dark": [
+    "#BAA5F2",
+    "#1C1921",
+    "#F0ECF4"
+   ],
+   "light": [
+    "#78519D",
+    "#F6F3F8",
+    "#302A36"
+   ]
+  }
+ },
+ "fonts": [
+  "系统默认",
+  "Microsoft YaHei UI",
+  "Segoe UI",
+  "等宽"
+ ],
+ "appearance": {
+  "preset": "ink",
+  "mode": "dark",
+  "font": "系统默认",
+  "light": [
+   "#A65027",
+   "#F5F1EB",
+   "#302B28"
+  ],
+  "dark": [
+   "#E79B69",
+   "#171719",
+   "#F2EEE8"
+  ]
+ },
+ "rates": [
+  [
+   "claude-fable-5.2",
+   "Claude Fable 5.2",
+   "Anthropic",
+   "^claude-(?:fable-5[.-]2|5[.-]2-fable)\\b",
+   8.0,
+   0.2,
+   10.0,
+   40.0
+  ],
+  [
+   "claude-fable-5",
+   "Claude Fable 5 / 5.1",
+   "Anthropic",
+   "^claude-(?:fable-5(?:[.-][01])?|5(?:[.-][01])?-fable)\\b",
+   10.0,
+   0.25,
+   12.5,
+   50.0
+  ],
+  [
+   "claude-opus-5.5",
+   "Claude Opus 5.5",
+   "Anthropic",
+   "^claude-(?:opus-5[.-]5|5[.-]5-opus)\\b",
+   4.0,
+   0.2,
+   5.0,
+   20.0
+  ],
+  [
+   "claude-opus-4.5-5",
+   "Claude Opus 4.5–4.8 / 5",
+   "Anthropic",
+   "^claude-(?:opus-(?:5(?![.-]\\d)|4[.-][5-9]\\d*)|(?:5(?![.-]\\d)|4[.-][5-9]\\d*)-opus)\\b",
+   5.0,
+   0.5,
+   6.25,
+   25.0
+  ],
+  [
+   "claude-opus-4-3",
+   "Claude Opus 3 / 4 / 4.1",
+   "Anthropic",
+   "^claude-(?:opus-(?:4(?:[.-][01])?|3)|(?:4(?:[.-][01])?|3)-opus)\\b",
+   15.0,
+   1.5,
+   18.75,
+   75.0
+  ],
+  [
+   "claude-sonnet-5",
+   "Claude Sonnet 5 / 5.5",
+   "Anthropic",
+   "^claude-(?:sonnet-5(?:[.-]\\d+)?|5(?:[.-]\\d+)?-sonnet)\\b",
+   2.0,
+   0.1,
+   2.5,
+   10.0
+  ],
+  [
+   "claude-sonnet-4",
+   "Claude Sonnet 3.5–4.6",
+   "Anthropic",
+   "^claude-(?:sonnet-(?:4(?:[.-]\\d+)?|3(?:[.-][057])?)|(?:4(?:[.-]\\d+)?|3(?:[.-][057])?)-sonnet)\\b",
+   3.0,
+   0.3,
+   3.75,
+   15.0
+  ],
+  [
+   "claude-haiku-5",
+   "Claude Haiku 5 / 5.5",
+   "Anthropic",
+   "^claude-(?:haiku-5(?:[.-]\\d+)?|5(?:[.-]\\d+)?-haiku)\\b",
+   0.1,
+   0.01,
+   0.125,
+   0.5
+  ],
+  [
+   "claude-haiku-4",
+   "Claude Haiku 4 / 4.5",
+   "Anthropic",
+   "^claude-(?:haiku-4(?:[.-]\\d+)?|4(?:[.-]\\d+)?-haiku)\\b",
+   1.0,
+   0.1,
+   1.25,
+   5.0
+  ],
+  [
+   "claude-haiku-3.5",
+   "Claude Haiku 3.5",
+   "Anthropic",
+   "^claude-(?:3[.-]5-haiku|haiku-3[.-]5)\\b",
+   0.8,
+   0.08,
+   1.0,
+   4.0
+  ],
+  [
+   "claude-haiku-3",
+   "Claude Haiku 3",
+   "Anthropic",
+   "^claude-(?:3-haiku|haiku-3)\\b",
+   0.25,
+   0.03,
+   0.3,
+   1.25
+  ],
+  [
+   "gpt-6.2-astra",
+   "GPT-6.2 Astra",
+   "OpenAI",
+   "^(?:gpt-6[.-]2-astra|(?:gpt-)?astra-6[.-]2)(?![.-]\\d)\\b",
+   8,
+   0.4,
+   10,
+   40
+  ],
+  [
+   "gpt-6-astra",
+   "GPT-6 Astra",
+   "OpenAI",
+   "^(?:gpt-6-astra|(?:gpt-)?astra-6)(?![.-]\\d)\\b",
+   10,
+   1,
+   12.5,
+   50
+  ],
+  [
+   "gpt-6.1-2-sol",
+   "GPT-6.1 / 6.2 Sol",
+   "OpenAI",
+   "^(?:gpt-6[.-][12]-sol|(?:gpt-)?sol-6[.-][12])(?![.-]\\d)\\b",
+   2,
+   0.1,
+   2.5,
+   10
+  ],
+  [
+   "gpt-6-sol",
+   "GPT-6 Sol",
+   "OpenAI",
+   "^(?:gpt-6-sol|(?:gpt-)?sol-6)(?![.-]\\d)\\b",
+   2,
+   0.2,
+   2.5,
+   10
+  ],
+  [
+   "gpt-6.1-terra",
+   "GPT-6.1 Terra",
+   "OpenAI",
+   "^(?:gpt-6[.-]1-terra|(?:gpt-)?terra-6[.-]1)(?![.-]\\d)\\b",
+   1,
+   0.05,
+   1.25,
+   5
+  ],
+  [
+   "gpt-6-luna",
+   "GPT-6 Luna",
+   "OpenAI",
+   "^(?:gpt-6-luna|(?:gpt-)?luna-6)(?![.-]\\d)\\b",
+   0.1,
+   0.01,
+   0.125,
+   0.5
+  ],
+  [
+   "gpt-5.6-luna",
+   "GPT-5.6 Luna",
+   "OpenAI",
+   "^gpt-5[.-]6-luna\\b",
+   0.2,
+   0.02,
+   0.2,
+   1.2
+  ],
+  [
+   "gpt-5.6",
+   "GPT-5.6 / Sol",
+   "OpenAI",
+   "^gpt-5[.-]6(?:-sol)?\\b",
+   4.0,
+   0.4,
+   4.0,
+   20.0
+  ],
+  [
+   "gpt-5.4-5.5-pro",
+   "GPT-5.4 / 5.5 Pro",
+   "OpenAI",
+   "^gpt-5[.-][45]-pro\\b",
+   30.0,
+   3.0,
+   30.0,
+   180.0
+  ],
+  [
+   "gpt-5.5",
+   "GPT-5.5",
+   "OpenAI",
+   "^gpt-5[.-]5\\b",
+   5.0,
+   0.5,
+   5.0,
+   30.0
+  ],
+  [
+   "gpt-5.4-mini",
+   "GPT-5.4 mini",
+   "OpenAI",
+   "^gpt-5[.-]4(?:-[a-z0-9]+)*-mini\\b",
+   0.75,
+   0.075,
+   0.75,
+   4.5
+  ],
+  [
+   "gpt-5.4-nano",
+   "GPT-5.4 nano",
+   "OpenAI",
+   "^gpt-5[.-]4(?:-[a-z0-9]+)*-nano\\b",
+   0.2,
+   0.02,
+   0.2,
+   1.25
+  ],
+  [
+   "gpt-5.4",
+   "GPT-5.4",
+   "OpenAI",
+   "^gpt-5[.-]4\\b",
+   2.5,
+   0.25,
+   2.5,
+   15.0
+  ],
+  [
+   "gpt-5.2-3-pro",
+   "GPT-5.2 / 5.3 Pro",
+   "OpenAI",
+   "^gpt-5[.-][23]-pro\\b",
+   21.0,
+   2.1,
+   21.0,
+   168.0
+  ],
+  [
+   "gpt-5-pro",
+   "GPT-5 Pro",
+   "OpenAI",
+   "^gpt-5(?:[.-]1)?-pro\\b",
+   15.0,
+   1.5,
+   15.0,
+   120.0
+  ],
+  [
+   "gpt-5-mini",
+   "GPT-5 mini",
+   "OpenAI",
+   "^gpt-5(?:[.-][0-3])?(?:-[a-z0-9]+)*-mini\\b",
+   0.25,
+   0.025,
+   0.25,
+   2.0
+  ],
+  [
+   "gpt-5-nano",
+   "GPT-5 nano",
+   "OpenAI",
+   "^gpt-5(?:[.-][0-3])?(?:-[a-z0-9]+)*-nano\\b",
+   0.05,
+   0.005,
+   0.05,
+   0.4
+  ],
+  [
+   "gpt-5.2-3",
+   "GPT-5.2 / 5.3 Codex",
+   "OpenAI",
+   "^gpt-5[.-][23](?:-codex)?\\b",
+   1.75,
+   0.175,
+   1.75,
+   14.0
+  ],
+  [
+   "gpt-5",
+   "GPT-5 / Codex",
+   "OpenAI",
+   "^(?:gpt-5(?:[.-][01])?(?:-codex)?|codex-1)\\b",
+   1.25,
+   0.125,
+   1.25,
+   10.0
+  ],
+  [
+   "codex-mini",
+   "Codex mini",
+   "OpenAI",
+   "^codex-mini\\b",
+   1.5,
+   0.375,
+   1.5,
+   6.0
+  ],
+  [
+   "gpt-oss-120b",
+   "GPT-OSS 120B",
+   "OpenAI",
+   "^gpt-oss-120b\\b",
+   0.15,
+   0.075,
+   0.15,
+   0.6
+  ],
+  [
+   "gpt-oss-20b",
+   "GPT-OSS 20B",
+   "OpenAI",
+   "^gpt-oss-20b\\b",
+   0.05,
+   0.025,
+   0.05,
+   0.2
+  ],
+  [
+   "gpt-4.5",
+   "GPT-4.5",
+   "OpenAI",
+   "^gpt-4[.-]5\\b",
+   75.0,
+   37.5,
+   75.0,
+   150.0
+  ],
+  [
+   "gpt-4.1-mini",
+   "GPT-4.1 mini",
+   "OpenAI",
+   "^gpt-4[.-]1-mini\\b",
+   0.4,
+   0.1,
+   0.4,
+   1.6
+  ],
+  [
+   "gpt-4.1-nano",
+   "GPT-4.1 nano",
+   "OpenAI",
+   "^gpt-4[.-]1-nano\\b",
+   0.1,
+   0.025,
+   0.1,
+   0.4
+  ],
+  [
+   "gpt-4.1",
+   "GPT-4.1",
+   "OpenAI",
+   "^gpt-4[.-]1\\b",
+   2.0,
+   0.5,
+   2.0,
+   8.0
+  ],
+  [
+   "gpt-4o-mini",
+   "GPT-4o mini",
+   "OpenAI",
+   "^gpt-4o-mini\\b",
+   0.15,
+   0.075,
+   0.15,
+   0.6
+  ],
+  [
+   "gpt-4o",
+   "GPT-4o",
+   "OpenAI",
+   "^(?:chatgpt-)?gpt-4o\\b|^chatgpt-4o\\b",
+   2.5,
+   1.25,
+   2.5,
+   10.0
+  ],
+  [
+   "gpt-4-turbo",
+   "GPT-4 Turbo",
+   "OpenAI",
+   "^gpt-4-turbo\\b",
+   10.0,
+   10.0,
+   10.0,
+   30.0
+  ],
+  [
+   "gpt-4",
+   "GPT-4",
+   "OpenAI",
+   "^gpt-4(?:-32k|-0\\d{3}|-vision)?\\b",
+   30.0,
+   30.0,
+   30.0,
+   60.0
+  ],
+  [
+   "gpt-3.5-turbo",
+   "GPT-3.5 Turbo",
+   "OpenAI",
+   "^gpt-3[.-]5-turbo\\b",
+   0.5,
+   0.5,
+   0.5,
+   1.5
+  ],
+  [
+   "o3-pro",
+   "o3-pro",
+   "OpenAI",
+   "^o3-pro\\b",
+   20.0,
+   5.0,
+   20.0,
+   80.0
+  ],
+  [
+   "o3-deep-research",
+   "o3-deep-research",
+   "OpenAI",
+   "^o3-deep-research\\b",
+   10.0,
+   2.5,
+   10.0,
+   40.0
+  ],
+  [
+   "o4-mini-deep-research",
+   "o4-mini-deep-research",
+   "OpenAI",
+   "^o4-mini-deep-research\\b",
+   2.0,
+   0.5,
+   2.0,
+   8.0
+  ],
+  [
+   "o3-o4-mini",
+   "o3-mini / o4-mini",
+   "OpenAI",
+   "^(?:o3|o4)-mini\\b",
+   1.1,
+   0.275,
+   1.1,
+   4.4
+  ],
+  [
+   "o3",
+   "o3",
+   "OpenAI",
+   "^o3\\b",
+   2.0,
+   0.5,
+   2.0,
+   8.0
+  ],
+  [
+   "o1-pro",
+   "o1-pro",
+   "OpenAI",
+   "^o1-pro\\b",
+   150.0,
+   150.0,
+   150.0,
+   600.0
+  ],
+  [
+   "o1-mini",
+   "o1-mini",
+   "OpenAI",
+   "^o1-mini\\b",
+   1.1,
+   0.55,
+   1.1,
+   4.4
+  ],
+  [
+   "o1",
+   "o1",
+   "OpenAI",
+   "^o1\\b",
+   15.0,
+   7.5,
+   15.0,
+   60.0
+  ],
+  [
+   "gemini-4-neon",
+   "Gemini 4 Neon",
+   "Google",
+   "^gemini-4(?:[.-]\\d+)?-neon\\b",
+   3.0,
+   0.15,
+   3.0,
+   15.0
+  ],
+  [
+   "gemini-4-carbon-argon",
+   "Gemini 4 Carbon / Argon",
+   "Google",
+   "^gemini-4(?:[.-]\\d+)?-(?:carbon|argon)\\b",
+   2.0,
+   0.1,
+   2.0,
+   10.0
+  ],
+  [
+   "gemini-4-hydrogen",
+   "Gemini 4 Hydrogen",
+   "Google",
+   "^gemini-4(?:[.-]\\d+)?-hydrogen\\b",
+   1.5,
+   0.075,
+   1.5,
+   7.5
+  ],
+  [
+   "gemini-3.6-3.8-flash",
+   "Gemini 3.6 / 3.8 Flash",
+   "Google",
+   "^gemini-3[.-][678]-flash\\b",
+   0.75,
+   0.075,
+   0.75,
+   3.75
+  ],
+  [
+   "gemini-3.5-flash-lite",
+   "Gemini 3.5 Flash-Lite",
+   "Google",
+   "^gemini-3[.-]5-flash-lite\\b",
+   0.3,
+   0.03,
+   0.3,
+   2.5
+  ],
+  [
+   "gemini-3.5-flash",
+   "Gemini 3.5 Flash",
+   "Google",
+   "^gemini-3[.-]5-flash\\b",
+   1.5,
+   0.15,
+   1.5,
+   9.0
+  ],
+  [
+   "gemini-3-flash-lite",
+   "Gemini 3.1 Flash-Lite",
+   "Google",
+   "^gemini-3(?:[.-][01])?-flash-lite\\b",
+   0.25,
+   0.025,
+   0.25,
+   1.5
+  ],
+  [
+   "gemini-3-pro",
+   "Gemini 3 Pro",
+   "Google",
+   "^gemini-3(?:[.-]\\d+)?-pro\\b",
+   2.0,
+   0.2,
+   2.0,
+   12.0
+  ],
+  [
+   "gemini-3-flash",
+   "Gemini 3 Flash",
+   "Google",
+   "^gemini-3(?:[.-][01])?-flash\\b",
+   0.5,
+   0.05,
+   0.5,
+   3.0
+  ],
+  [
+   "gemini-2.5-pro",
+   "Gemini 2.5 Pro",
+   "Google",
+   "^gemini-2[.-]5-pro\\b",
+   1.25,
+   0.125,
+   1.25,
+   10.0
+  ],
+  [
+   "gemini-2.5-flash-lite",
+   "Gemini 2.5 Flash-Lite",
+   "Google",
+   "^gemini-2[.-]5-flash-lite\\b",
+   0.1,
+   0.01,
+   0.1,
+   0.4
+  ],
+  [
+   "gemini-2.5-flash",
+   "Gemini 2.5 Flash",
+   "Google",
+   "^gemini-2[.-]5-flash\\b",
+   0.3,
+   0.03,
+   0.3,
+   2.5
+  ],
+  [
+   "gemini-2.0-flash-lite",
+   "Gemini 2.0 Flash-Lite",
+   "Google",
+   "^gemini-2[.-]0-flash-lite\\b",
+   0.075,
+   0.01875,
+   0.075,
+   0.3
+  ],
+  [
+   "gemini-2.0-flash",
+   "Gemini 2.0 Flash",
+   "Google",
+   "^gemini-2[.-]0-flash\\b",
+   0.1,
+   0.025,
+   0.1,
+   0.4
+  ],
+  [
+   "gemini-1.5-pro",
+   "Gemini 1.5 Pro",
+   "Google",
+   "^gemini-1[.-]5-pro\\b",
+   1.25,
+   0.3125,
+   1.25,
+   5.0
+  ],
+  [
+   "gemini-1.5-flash-8b",
+   "Gemini 1.5 Flash-8B",
+   "Google",
+   "^gemini-1[.-]5-flash-8b\\b",
+   0.0375,
+   0.01,
+   0.0375,
+   0.15
+  ],
+  [
+   "gemini-1.5-flash",
+   "Gemini 1.5 Flash",
+   "Google",
+   "^gemini-1[.-]5-flash\\b",
+   0.075,
+   0.01875,
+   0.075,
+   0.3
+  ],
+  [
+   "grok-4.5+",
+   "Grok 4.5 / 4.6 / 4.7",
+   "xAI",
+   "^grok-4[.-][567]\\d*\\b",
+   2.0,
+   0.5,
+   2.0,
+   6.0
+  ],
+  [
+   "grok-4.2-3",
+   "Grok 4.2 / 4.3",
+   "xAI",
+   "^grok-4[.-][23]\\d*\\b",
+   1.25,
+   0.2,
+   1.25,
+   2.5
+  ],
+  [
+   "grok-4-fast",
+   "Grok 4 Fast",
+   "xAI",
+   "^grok-4(?:[.-]1)?-fast\\b",
+   0.2,
+   0.05,
+   0.2,
+   0.5
+  ],
+  [
+   "grok-code-fast-1",
+   "Grok Code Fast 1",
+   "xAI",
+   "^grok-code-fast-1\\b",
+   0.2,
+   0.02,
+   0.2,
+   1.5
+  ],
+  [
+   "grok-code-fast",
+   "Grok Code Fast",
+   "xAI",
+   "^(?:grok-code-fast|grok-build-0[.-]1)\\b",
+   1.0,
+   0.2,
+   1.0,
+   2.0
+  ],
+  [
+   "grok-3-mini",
+   "Grok 3 mini",
+   "xAI",
+   "^grok-3-mini\\b",
+   0.3,
+   0.075,
+   0.3,
+   0.5
+  ],
+  [
+   "grok-3-4",
+   "Grok 3 / Grok 4",
+   "xAI",
+   "^grok-[34](?:\\b|-beta|-latest|-0\\d{3})",
+   3.0,
+   0.75,
+   3.0,
+   15.0
+  ],
+  [
+   "grok-2",
+   "Grok 2",
+   "xAI",
+   "^grok-2\\b",
+   2.0,
+   0.5,
+   2.0,
+   10.0
+  ],
+  [
+   "kimi-k3.1-highspeed",
+   "Kimi K3.1 HighSpeed",
+   "Moonshot AI",
+   "^kimi-k3(?:[.-]1)?(?:-[a-z0-9]+)*-highspeed\\b",
+   4.0,
+   0.2,
+   4.0,
+   20.0
+  ],
+  [
+   "kimi-k3.1",
+   "Kimi K3.1 Pro",
+   "Moonshot AI",
+   "^kimi-k3[.-]1\\b",
+   2.0,
+   0.2,
+   2.0,
+   10.0
+  ],
+  [
+   "kimi-k3",
+   "Kimi K3",
+   "Moonshot AI",
+   "^kimi-k3\\b",
+   3.0,
+   0.3,
+   3.0,
+   15.0
+  ],
+  [
+   "kimi-k2.7-highspeed",
+   "Kimi K2.7 HighSpeed",
+   "Moonshot AI",
+   "^kimi-k2[.-]7(?:-[a-z0-9]+)*-highspeed\\b",
+   1.9,
+   0.38,
+   1.9,
+   8.0
+  ],
+  [
+   "kimi-k2.6-7",
+   "Kimi K2.6 / K2.7",
+   "Moonshot AI",
+   "^kimi-k2[.-][67]\\b",
+   0.95,
+   0.16,
+   0.95,
+   4.0
+  ],
+  [
+   "kimi-k2",
+   "Kimi K2 / Code",
+   "Moonshot AI",
+   "^(?:kimi-k2(?:[.-]\\d+)?|kimi-for-coding|kimi-code)\\b",
+   0.6,
+   0.15,
+   0.6,
+   2.5
+  ],
+  [
+   "moonshot-v1-128k",
+   "Moonshot v1 128K",
+   "Moonshot AI",
+   "^moonshot-v1-128k\\b",
+   2.0,
+   0.2,
+   2.0,
+   5.0
+  ],
+  [
+   "moonshot-v1-32k",
+   "Moonshot v1 32K",
+   "Moonshot AI",
+   "^moonshot-v1-32k\\b",
+   1.0,
+   0.1,
+   1.0,
+   3.0
+  ],
+  [
+   "moonshot-v1-8k",
+   "Moonshot v1 8K",
+   "Moonshot AI",
+   "^moonshot-v1-(?:8k|auto)\\b",
+   0.2,
+   0.02,
+   0.2,
+   2.0
+  ],
+  [
+   "deepseek-v4-pro",
+   "DeepSeek V4 Pro",
+   "DeepSeek",
+   "^deepseek-(?:v4-)?pro\\b",
+   0.66,
+   0.022,
+   0.66,
+   1.98
+  ],
+  [
+   "deepseek-flash",
+   "DeepSeek Flash",
+   "DeepSeek",
+   "^deepseek-(?:v4(?:[.-]\\d+)?-)?flash\\b",
+   0.15,
+   0.003,
+   0.15,
+   0.6
+  ],
+  [
+   "deepseek-r1",
+   "DeepSeek R1",
+   "DeepSeek",
+   "^deepseek-(?:reasoner|r1)\\b",
+   0.55,
+   0.14,
+   0.55,
+   2.19
+  ],
+  [
+   "deepseek-v3",
+   "DeepSeek V3 / Chat",
+   "DeepSeek",
+   "^deepseek-(?:chat|v3(?:[.-]\\d+)?)\\b",
+   0.28,
+   0.028,
+   0.28,
+   0.42
+  ],
+  [
+   "minimax-m3.1-flash",
+   "MiniMax M3.1 Flash",
+   "MiniMax",
+   "^minimax-m3[.-]1-flash\\b",
+   0.15,
+   0.015,
+   0.15,
+   0.6
+  ],
+  [
+   "minimax-m2-m3",
+   "MiniMax M2 / M3",
+   "MiniMax",
+   "^minimax-m[23](?:[.-]\\d+)?\\b",
+   0.3,
+   0.06,
+   0.3,
+   1.2
+  ],
+  [
+   "minimax-m1",
+   "MiniMax M1",
+   "MiniMax",
+   "^minimax-(?:m1|text-01)\\b",
+   0.4,
+   0.08,
+   0.4,
+   2.2
+  ],
+  [
+   "glm-5.2-3-flashx",
+   "GLM-5.3 FlashX",
+   "Zhipu AI",
+   "^glm-5[.-][23]-flashx\\b",
+   0.37,
+   0.075,
+   0.37,
+   1.25
+  ],
+  [
+   "glm-5.2-3-flash",
+   "GLM-5.3 Flash",
+   "Zhipu AI",
+   "^glm-5[.-][23]-flash\\b",
+   0.15,
+   0.03,
+   0.15,
+   0.5
+  ],
+  [
+   "glm-5.2-3",
+   "GLM-5.2 / 5.3",
+   "Zhipu AI",
+   "^glm-5[.-][23]\\b",
+   1.4,
+   0.26,
+   1.4,
+   4.4
+  ],
+  [
+   "glm-5",
+   "GLM-5",
+   "Zhipu AI",
+   "^glm-5\\b",
+   1.0,
+   0.2,
+   1.0,
+   3.2
+  ],
+  [
+   "glm-4-flashx",
+   "GLM-4 FlashX",
+   "Zhipu AI",
+   "^glm-4(?:[.-]\\d+)?-flashx\\b",
+   0.07,
+   0.01,
+   0.07,
+   0.4
+  ],
+  [
+   "glm-4-flash",
+   "GLM-4 Flash (Free)",
+   "Zhipu AI",
+   "^glm-4(?:[.-]\\d+)?-flash\\b",
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ],
+  [
+   "glm-4.5-7",
+   "GLM-4.5–4.7",
+   "Zhipu AI",
+   "^glm-4[.-][567]\\b",
+   0.6,
+   0.11,
+   0.6,
+   2.2
+  ],
+  [
+   "qwen-4-max",
+   "Qwen 4 Max",
+   "Alibaba Cloud",
+   "^qwen-?4-max\\b",
+   1.5,
+   0.075,
+   1.5,
+   4.5
+  ],
+  [
+   "qwen-3.8-max",
+   "Qwen 3.8 Max",
+   "Alibaba Cloud",
+   "^qwen-?3[.-]8-max\\b",
+   2.0,
+   0.2,
+   2.0,
+   6.0
+  ],
+  [
+   "qwen-3.7-max",
+   "Qwen 3.7 Max",
+   "Alibaba Cloud",
+   "^qwen-?3[.-]7-max\\b",
+   2.5,
+   0.25,
+   2.5,
+   7.5
+  ],
+  [
+   "qwen-3.8-flash",
+   "Qwen 3.8 Flash",
+   "Alibaba Cloud",
+   "^qwen-?3[.-]8-flash\\b",
+   0.15,
+   0.015,
+   0.15,
+   0.47
+  ],
+  [
+   "qwen-3-flash",
+   "Qwen 3 Flash",
+   "Alibaba Cloud",
+   "^qwen-?3(?:[.-]7)?-flash\\b",
+   0.03,
+   0.003,
+   0.03,
+   0.13
+  ],
+  [
+   "qwen-plus",
+   "Qwen Plus",
+   "Alibaba Cloud",
+   "^qwen-?(?:3(?:[.-][78])?-)?plus\\b",
+   0.4,
+   0.04,
+   0.4,
+   1.6
+  ],
+  [
+   "qwen-3-coder",
+   "Qwen 3 Coder",
+   "Alibaba Cloud",
+   "^qwen-?3-coder\\b",
+   1.0,
+   0.1,
+   1.0,
+   5.0
+  ],
+  [
+   "qwen-max",
+   "Qwen Max",
+   "Alibaba Cloud",
+   "^qwen-?(?:3-)?max\\b",
+   1.6,
+   0.16,
+   1.6,
+   6.4
+  ],
+  [
+   "qwen-turbo",
+   "Qwen Turbo",
+   "Alibaba Cloud",
+   "^qwen-?turbo\\b",
+   0.05,
+   0.005,
+   0.05,
+   0.2
+  ]
+ ],
+ "version": "2026-11 公开标价基准",
+ "provider": "^(?:(?:us|eu|ap|apac|global)\\.)?(?:anthropic|openai|google|xai|x-ai|moonshot|moonshotai|deepseek|minimax|zhipu|z-ai|qwen|alibaba)\\.",
+ "enum": "^model-(?=(?:claude|gpt|codex|o[134]|gemini|grok|kimi|moonshot|deepseek|minimax|glm|qwen)\\b)",
+ "services": {
+  "copilot": [
+   "GitHub Copilot",
+   "编程",
+   "https://github.com/settings/billing/usage",
+   "个人用量"
+  ],
+  "grok": [
+   "Grok / SuperGrok",
+   "对话",
+   "https://grok.com/dashboard",
+   "Usage"
+  ],
+  "minimax": [
+   "MiniMax M Plan",
+   "编程",
+   "https://www.minimax.cn/m-plan",
+   "套餐用量"
+  ],
+  "claude-code": [
+   "Claude / Claude Code",
+   "对话",
+   "https://claude.ai/settings/usage",
+   "订阅共用额度"
+  ],
+  "kimi-code": [
+   "Kimi Code",
+   "编程",
+   "https://www.kimi.com/code/console",
+   "会员额度"
+  ],
+  "chatgpt-web": [
+   "ChatGPT 网页",
+   "对话",
+   "https://chatgpt.com/",
+   "账号内的用量提示"
+  ],
+  "gemini-web": [
+   "Gemini 网页",
+   "对话",
+   "https://gemini.google.com/app",
+   "设置 → 使用限额"
+  ],
+  "kimi-web": [
+   "Kimi 网页",
+   "对话",
+   "https://www.kimi.com/",
+   "我的额度"
+  ],
+  "perplexity": [
+   "Perplexity",
+   "对话",
+   "https://www.perplexity.ai/account",
+   "Settings → Usage"
+  ],
+  "m365": [
+   "Microsoft 365 Copilot",
+   "对话",
+   "https://account.microsoft.com/services",
+   "服务和订阅 → AI 点数"
+  ],
+  "doubao": [
+   "豆包",
+   "对话",
+   "https://www.doubao.com/chat/",
+   "积分 / 会员"
+  ],
+  "gemini-cli": [
+   "Gemini CLI",
+   "编程",
+   "https://geminicli.com/docs/resources/quota-and-pricing/",
+   "在 CLI 输入 /stats model"
+  ],
+  "cursor": [
+   "Cursor",
+   "编程",
+   "https://cursor.com/dashboard/usage",
+   "个人用量"
+  ],
+  "glm-plan": [
+   "智谱 GLM Coding Plan",
+   "编程",
+   "https://bigmodel.cn/apikey/coding-plan-per",
+   "个人套餐概览"
+  ],
+  "bailian": [
+   "阿里云百炼 Coding Plan",
+   "编程",
+   "https://bailian.console.aliyun.com/cn-beijing/subscription/coding-plan",
+   "套餐用量"
+  ],
+  "kiro": [
+   "Kiro",
+   "编程",
+   "https://kiro.dev/docs/cli/billing/subscription-portal/",
+   "在 CLI 输入 /usage"
+  ],
+  "trae": [
+   "TRAE 国际版",
+   "编程",
+   "https://www.trae.ai/",
+   "账号订阅用量"
+  ],
+  "trae-cn": [
+   "TRAE 国内版",
+   "编程",
+   "https://www.trae.cn/",
+   "头像 → 用量管理"
+  ],
+  "windsurf": [
+   "Windsurf",
+   "编程",
+   "https://windsurf.com/subscription/usage",
+   "订阅用量"
+  ],
+  "ark-plan": [
+   "火山方舟 Coding Plan",
+   "编程",
+   "https://ark.volcengine.com/region:cn-beijing/openManagement?advancedActiveKey=subscribe",
+   "开通管理 → 套餐用量"
+  ],
+  "tencent-plan": [
+   "腾讯云 Coding Plan",
+   "编程",
+   "https://console.cloud.tencent.com/tokenhub/codingplan",
+   "TokenHub 套餐用量"
+  ],
+  "midjourney": [
+   "Midjourney",
+   "创作",
+   "https://www.midjourney.com/account",
+   "Fast GPU 时长"
+  ],
+  "runway": [
+   "Runway",
+   "创作",
+   "https://app.runwayml.com/",
+   "工作区 → Plans & Billing"
+  ],
+  "suno": [
+   "Suno",
+   "创作",
+   "https://suno.com/account",
+   "剩余积分"
+  ],
+  "firefly": [
+   "Adobe Firefly",
+   "创作",
+   "https://account.adobe.com/",
+   "个人资料 → 生成式点数"
+  ],
+  "elevenlabs": [
+   "ElevenLabs",
+   "创作",
+   "https://elevenlabs.io/app/subscription",
+   "工作区订阅点数"
+  ],
+  "jimeng": [
+   "即梦 AI",
+   "创作",
+   "https://jimeng.jianying.com/",
+   "积分 / 会员 → 积分详情"
+  ],
+  "kling": [
+   "可灵 AI",
+   "创作",
+   "https://klingai.kuaishou.com/",
+   "会员灵感值"
+  ]
+ }
+}
