@@ -1,6 +1,8 @@
 """Explicit, request-level import contracts. Aggregate reports have no importer."""
 
+import hashlib
 import csv
+from .evidence import merge, now, pack, write_event
 import io
 import json
 from datetime import datetime, timezone
@@ -12,7 +14,6 @@ from .core import (
     counters,
     digest,
     event,
-    mark_usage_changes,
     stamp,
     text_field,
 )
@@ -112,54 +113,113 @@ def convert(row, csv_input=False):
     )
 
 
-def import_file(db, raw, fmt):
+def import_file(db, raw, fmt, preview=False):
     content = raw.decode("utf-8-sig")
     if fmt == "csv":
-        rows = csv.DictReader(io.StringIO(content, newline=""))
-    else:
+        rows = csv.DictReader(io.StringIO(content, newline=""), strict=True)
+    elif fmt == "json":
         doc = json.loads(content)
         rows = doc if isinstance(doc, list) else [doc]
-    added = duplicate = 0
+    else:
+        raise ValueError("请选择 JSON 或 CSV")
+    result = dict(added=0, duplicate=0, enriched=0, conflict=0, invalid=0, problems=[])
     entries = set()
     with db:
         db.execute("BEGIN IMMEDIATE")
-        before = db.total_changes
-        for n, item in enumerate(rows, 1):
-            try:
-                rec = convert(item, fmt == "csv")
-                old = db.execute("SELECT * FROM events WHERE uid=?", (rec[0],)).fetchone()
-                if old:
-                    # Source label and project annotation may differ between two exports of one request.
-                    if (old["entry"], old["ts"], old["model"]) != (rec[2], rec[1], rec[4]) or any(
-                        old[key] is not None and v is not None and old[key] != v
-                        for key, v in zip(FIELDS, rec[7:])
-                    ):
-                        raise ValueError("同一请求标识出现相冲突的时间、入口、模型或计数")
-                    merged = counters(
-                        **{k: old[k] if old[k] is not None else v for k, v in zip(FIELDS, rec[7:])}
-                    )
-                    if any(old[k] != merged[k] for k in FIELDS):
-                        db.execute(
-                            "UPDATE events SET total=?,input=?,output=?,cache_read=?,cache_write=?,reasoning=? WHERE uid=?",
-                            (*[merged[k] for k in FIELDS], rec[0]),
+        batch = db.execute(
+            "INSERT INTO batches(created,fingerprint) VALUES(?,?)",
+            (now(), hashlib.sha256(raw).hexdigest()),
+        ).lastrowid
+        try:
+            for n, item in enumerate(rows, 1):
+                try:
+                    rec = convert(item, fmt == "csv")
+                except (
+                    KeyError,
+                    TypeError,
+                    AttributeError,
+                    ValueError,
+                    OverflowError,
+                    OSError,
+                ) as err:
+                    result["invalid"] += 1
+                    if len(result["problems"]) < 50:
+                        result["problems"].append(
+                            f"第 {n} 行：{err if isinstance(err, ValueError) else '字段格式无效'}"
                         )
-                    duplicate += 1
-                else:
-                    db.execute("INSERT INTO events VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", rec)
-                    added += 1
+                    continue
+                old = db.execute("SELECT * FROM events WHERE uid=?", (rec[0],)).fetchone()
+                try:
+                    merged = merge(tuple(old), rec) if old else rec
+                except ValueError as err:
+                    result["conflict"] += 1
+                    if len(result["problems"]) < 50:
+                        result["problems"].append(f"第 {n} 行：{err}")
+                    continue
+                if (
+                    old
+                    and not db.execute(
+                        "SELECT 1 FROM contributions WHERE uid=? LIMIT 1", (rec[0],)
+                    ).fetchone()
+                ):
+                    db.execute(
+                        "INSERT OR IGNORE INTO legacy_base VALUES(?,?)", (rec[0], pack(tuple(old)))
+                    )
+                kind = "added" if not old else "duplicate" if tuple(old) == merged else "enriched"
+                result[kind] += 1
+                if kind != "duplicate":
+                    write_event(db, merged)
+                db.execute(
+                    "INSERT INTO contributions VALUES(?,?,?,?,?)",
+                    (batch, n, rec[0], pack(rec), kind),
+                )
                 entries.add(rec[2])
-            except (KeyError, TypeError, AttributeError, ValueError, OverflowError, OSError) as err:
-                raise ValueError(
-                    f"第 {n} 条记录格式无效。{err}"
-                    if type(err) is ValueError
-                    else f"第 {n} 条记录字段类型无效"
-                ) from None
-        if not entries:
+        except csv.Error as exc:
+            raise ValueError("CSV 结构无效") from exc
+        if not sum(result[k] for k in ("added", "enriched", "duplicate", "invalid", "conflict")):
             raise ValueError("文件没有可导入的逐请求记录")
-        mark_usage_changes(db, before)
+        if preview:
+            db.rollback()
+            return result
+        if result["invalid"] or result["conflict"]:
+            raise ValueError(result["problems"][0] + "；整批未入账")
+        if result["added"] or result["enriched"]:
+            db.execute("UPDATE usage_revision SET value=value+1")
+        db.execute("UPDATE batches SET result=? WHERE id=?", (pack(result), batch))
         for entry in entries:
-            db.execute(
-                "INSERT OR REPLACE INTO scans VALUES (?,?,NULL,0,0,1)",
-                (entry, datetime.now(timezone.utc).isoformat()),
-            )
-    return {"added": added, "duplicate": duplicate}
+            db.execute("INSERT OR REPLACE INTO scans VALUES(?,?,NULL,0,0,1)", (entry, now()))
+    return dict(result, batch=batch)
+
+
+def undo(db, batch):
+    with db:
+        db.execute("BEGIN IMMEDIATE")
+        if not db.execute(
+            "UPDATE batches SET undone=? WHERE id=? AND undone IS NULL", (now(), batch)
+        ).rowcount:
+            raise ValueError("此批次不存在或已撤销")
+        affected = [
+            r[0]
+            for r in db.execute("SELECT DISTINCT uid FROM contributions WHERE batch=?", (batch,))
+        ]
+        removed = changed = 0
+        for uid in affected:
+            old = tuple(db.execute("SELECT * FROM events WHERE uid=?", (uid,)).fetchone())
+            base = db.execute("SELECT payload FROM legacy_base WHERE uid=?", (uid,)).fetchone()
+            rec = tuple(json.loads(base[0])) if base else None
+            for row in db.execute(
+                """SELECT c.payload FROM contributions c JOIN batches b ON b.id=c.batch
+                    WHERE c.uid=? AND b.undone IS NULL ORDER BY c.batch,c.line""",
+                (uid,),
+            ):
+                data = tuple(json.loads(row[0]))
+                rec = merge(rec, data) if rec else data
+            if rec is None:
+                db.execute("DELETE FROM events WHERE uid=?", (uid,))
+                removed += 1
+            elif rec != old:
+                write_event(db, rec)
+                changed += 1
+        if removed or changed:
+            db.execute("UPDATE usage_revision SET value=value+1")
+    return dict(removed=removed, recomputed=changed, retained=len(affected) - removed)

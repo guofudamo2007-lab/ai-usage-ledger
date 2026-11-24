@@ -1,6 +1,7 @@
 private/
 runtime/
 release/
+/MeterWidget.exe
 .qa/
 .venv/
 exports/

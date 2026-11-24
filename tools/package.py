@@ -1,8 +1,11 @@
 """Assemble a relocatable CPython runtime and a clean Windows ZIP using allowlists."""
 
 import argparse
+import tempfile
 import importlib.util
 import shutil
+import os
+import subprocess
 import sys
 import sysconfig
 import zipfile
@@ -66,21 +69,70 @@ def runtime(tz):
 
 
 def archive():
-    for required in ("LICENSE", "runtime/python.exe", "runtime/python314.zip", "runtime/LICENSE.txt",
-                     "runtime/tzdata/zoneinfo/UTC", "runtime/tzdata-licenses/LICENSE"):
-        if not (ROOT / required).is_file():
-            raise SystemExit(f"缺少 {required}。请先准备运行环境，可用 --runtime --archive 一起构建。")
     dest = ROOT / "release"
     dest.mkdir(exist_ok=True)
-    archive_path = dest / "Meter-Windows-x64.zip"
+    with tempfile.TemporaryDirectory(dir=dest) as folder:
+        assemble(Path(folder), dest)
+
+
+def assemble(build, dest):
+    framework = Path(os.environ["WINDIR"]) / "Microsoft.NET/Framework64/v4.0.30319"
+    references = [
+        "System.Web.Extensions.dll",
+        "System.Windows.Forms.dll",
+        "System.Xaml.dll",
+        "WPF/PresentationFramework.dll",
+        "WPF/PresentationCore.dll",
+        "WPF/WindowsBase.dll",
+    ]
+    subprocess.run(
+        [
+            str(framework / "csc.exe"),
+            "/nologo",
+            "/optimize+",
+            "/target:winexe",
+            "/out:" + str(build / "MeterWidget.exe"),
+            *["/reference:" + str(framework / name) for name in references],
+            str(ROOT / "tools/MeterWidget.cs"),
+        ],
+        check=True,
+    )
+    for required in (
+        "LICENSE",
+        "runtime/python.exe",
+        "runtime/python314.zip",
+        "runtime/LICENSE.txt",
+        "runtime/tzdata/zoneinfo/UTC",
+        "runtime/tzdata-licenses/LICENSE",
+    ):
+        if not (ROOT / required).is_file():
+            raise SystemExit(
+                f"缺少 {required}。请先准备运行环境，可用 --runtime --archive 一起构建。"
+            )
+    archive_path = build / "Meter-1.7-preview-Windows-x64.zip"
     with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as out:
-        for rel in ["LICENSE", "启动账本.cmd", "使用说明.md", "ledger_app.py", "ledger", "runtime", "web"]:
-            src = ROOT / rel
+        for rel in [
+            "LICENSE",
+            "启动账本.cmd",
+            "MeterWidget.exe",
+            "使用说明.md",
+            "ledger_app.py",
+            "ledger",
+            "runtime",
+            "web",
+        ]:
+            src = (build if rel == "MeterWidget.exe" else ROOT) / rel
             candidates = [src] if src.is_file() else sorted(src.rglob("*"))
             for p in candidates:
                 if p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc":
-                    out.write(p, (Path("AI用量账本") / p.relative_to(ROOT)).as_posix())
-    print(archive_path, archive_path.stat().st_size)
+                    out.write(
+                        p,
+                        (
+                            Path("AI用量账本") / (rel if src.is_file() else p.relative_to(ROOT))
+                        ).as_posix(),
+                    )
+    final = archive_path.replace(dest / archive_path.name)
+    print(final, final.stat().st_size)
 
 
 if __name__ == "__main__":

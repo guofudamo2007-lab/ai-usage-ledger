@@ -20,12 +20,19 @@ import {
   updateSummary,
   entryPanel,
   timeAt,
+  formatUsd,
+  usdHtml,
 } from "./ui.js";
 import { mountSelects, disposeSelects, mountTrend } from "./instruments.js";
+import { inspect } from "./review.js";
+import { initAppearance } from "./appearance.js";
 import { renderSources, renderBook } from "./books.js";
+import { createReferencePicker, referenceCaption, mostUsedModels } from "./references.js";
+import { openPricingModal } from "./pricing.js";
 
 const main = $("#main"),
   detected = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+const chooseReference = createReferencePicker();
 const defaultState = {
   tab: "home",
   period: "week",
@@ -47,7 +54,7 @@ let detailFilters = false,
   job = {},
   lastFinished,
   chartObserver;
-let shown = null, shownKey = "", knownRevision = null, lastDay = "", bookRows = null;
+let shown = null, shownKey = "", knownRevision = null, lastDay = "";
 const views = new Map();
 const pendingViews = new Map();
 // Keep a few bounded, already rendered rankings for repeated sort and scope switches.
@@ -158,7 +165,7 @@ const clearDetail = {
   page: null,
 };
 function tab(name) {
-  navigate({ tab: name, ...clearDetail }, { push: true, top: true });
+  navigate({ tab: name, diagnosis:null, ...clearDetail }, { push: true, top: true });
 }
 for (const el of $$("[data-nav]")) el.onclick = () => tab(el.dataset.nav);
 $(".brand").onclick = (e) => {
@@ -186,13 +193,13 @@ function effective() {
   return a;
 }
 function selectFilter(id, label, field, value, blank) {
-  const values = registry.values[field] || [],
+  const values = field==="missing" ? Object.entries(metNames) : registry.values[field] || [],
     list =
       field === "entry" ? values.map((v) => [v, registry.entries[v]]) : values;
   return choices(id, label, list, value || "", blank);
 }
 function filters(data) {
-  const count = ["vendor", "model", "entry", "project", "source"].filter(
+  const count = ["vendor", "model", "entry", "project", "source","account","task","missing"].filter(
     (k) => state[k],
   ).length;
   const dates =
@@ -210,7 +217,7 @@ function filters(data) {
           ["model", "模型"],
           ["entry", "使用入口"],
           ["project", "项目"],
-          ["source", "数据来源"],
+          ["source", "数据来源"], ["account","账号"], ["task","接力任务"], ["missing","缺失字段"],
         ]
           .filter(([k]) => !state.dm || !["vendor", "model"].includes(k))
           .map(([k, label]) =>
@@ -259,7 +266,7 @@ function bindFilters(data) {
         model: null,
         entry: null,
         project: null,
-        source: null,
+        source: null,account:null,task:null,missing:null,
         page: null,
       });
     };
@@ -268,7 +275,7 @@ let filterSignature = "";
 function drawFilters(data, force = false) {
   const root = $("#scope-controls");
   const signature = JSON.stringify([state.period === "custom",state.from,state.to,state.tz,
-    !!state.dm,filtersOpen,state.vendor,state.model,state.entry,state.project,state.source,registry.version]);
+    !!state.dm,filtersOpen,state.vendor,state.model,state.entry,state.project,state.source,state.account,state.task,state.missing,registry.version]);
   if (force || !root.firstChild || signature !== filterSignature) {
     disposeSelects(root);
     root.innerHTML = filters(data);
@@ -295,6 +302,20 @@ async function doSync() {
   }
 }
 function updateJob() {
+  const warning = $("#health-warning");
+  const entries = job.alerts?.entries || [];
+  const conflicts = job.alerts?.conflicts || 0;
+  warning.hidden = !(job.error || entries.length || conflicts);
+  warning.textContent = job.error || (warning.hidden ? "" : "来源需核对");
+  const links=entries.map(k=>[k,registry.entries[k] || k]);
+  if(conflicts) links.push(["conflicts",conflicts+" 条观测冲突"]);
+  if(job.error && !links.length) links.push(["","查看诊断"]);
+  for (const [diagnosis,label] of links) {
+    const link=document.createElement("button");
+    link.className="text-btn"; link.textContent=label;
+    link.onclick=()=>navigate({tab:"sources",diagnosis,...clearDetail},{push:true,top:true});
+    warning.append("　",link);
+  }
   const el = $("#sync");
   if (el) {
     el.disabled = !!job.running;
@@ -325,6 +346,8 @@ async function poll() {
         (state.tab === "sources" && (changed || finished)))) await render();
     updateJob();
   } catch {
+    job = {...job,running:false,error:"本地服务连接中断，当前显示上次读取的数据"};
+    updateJob();
   } finally {
     schedule(job.running ? 1800 : 15000);
   }
@@ -341,20 +364,22 @@ const groups = [
 ];
 const sorts = [
   ["total", "总 Token"],
+  ["value", "等效 API 价值"],
   ["output", "输出 Token"],
   ["net", "剔除缓存读取"],
 ];
 const groupLabels = { model: "模型", vendor: "厂商", entry: "入口" };
 function entryRows(row, metric) {
   return `<div class="subrows">${sortedRows(row.children,metric,["entry"]).map(child =>
-    `<div><span>${icon("link",13)}${esc(registry.entries[child.entry])}</span><b class="num" title="${full(child[metric])}">${full(child[metric])}</b><small>${percent(child[metric],row[metric])}</small></div>`).join("")}</div>`;
+    `<div><span>${icon("link",13)}${esc(registry.entries[child.entry])}</span><b class="num" title="${metric==="value"?formatUsd(child.value):full(child[metric])}">${metric==="value"?formatUsd(child.value):full(child[metric])}<small>${child[metric+"_n"]}/${child.n} 条已知</small></b><small>${percent(child[metric],row[metric])}</small></div>`).join("")}</div>`;
 }
 function rankMarkup(data) {
   const metric = state.sort,
     group = state.group,
     max = data.rank[0]?.[metric] || 0;
   const coverage =
-    metric === "net" || data.totals[metric + "_n"] < data.totals.n;
+    metric === "net" || metric === "value" || data.totals[metric + "_n"] < data.totals.n;
+  const frequent = group === "model" ? mostUsedModels(data.rank) : new Set();
   const bar = (value) =>
     value == null
       ? ""
@@ -369,9 +394,13 @@ function rankMarkup(data) {
           : group === "entry"
             ? "使用入口"
             : "模型厂商";
+      const subUsd = metric !== "value" && r.value != null
+        ? `<span class="row-usd" title="等效 API 价值（公开标价估算）"> · ≈ ${formatUsd(r.value)}</span>`
+        : "";
+      const qtyHtml = metric === "value" ? usdHtml(r.value) : number(r[metric]);
       return `<div class="rank-row" data-index="${i}"><div class="row-no">${String(i + 1).padStart(2, "0")}</div>
-    <div class="identity">${group === "entry" ? `<span class="vendor-mark misc">${icon("plug")}</span>` : vendorMark(r.vendor)}<div><button class="name-btn" data-item="${i}">${esc(name)}</button><span class="row-sub">${esc(sub)}</span></div></div>
-    <div class="rank-bar">${bar(r[metric])}</div><div class="rank-qty">${number(r[metric])}</div><div class="rank-share">${percent(r[metric], data.totals[metric])}</div>
+    <div class="identity">${group === "entry" ? `<span class="vendor-mark misc">${icon("plug")}</span>` : vendorMark(r.vendor)}<div><button class="name-btn" data-item="${i}">${esc(name)}</button><span class="row-sub">${esc(sub)}${frequent.has(r) ? `<span class="frequent-model" title="${full(r.n)} 条实测记录">${frequent.size > 1 ? "并列最常用" : "最常用"}</span>` : ""}${subUsd}</span></div></div>
+    <div class="rank-bar">${bar(r[metric])}</div><div class="rank-qty">${qtyHtml}<small>${r[metric+"_n"]}/${r.n} 条已知</small></div><div class="rank-share">${percent(r[metric], data.totals[metric])}</div>
     ${group === "model" ? `<button class="expand" data-expand="${i}" title="${open ? "收起" : "展开"}入口分布" aria-label="${open ? "收起" : "展开"} ${esc(name)} 的入口" aria-expanded="${open}">${icon("right", 15)}</button>` : `<button class="expand" data-item="${i}" aria-label="查看该分组">${icon("right", 15)}</button>`}</div>
     ${group === "model" && open ? entryRows(r, metric) : ""}`;
     })
@@ -483,9 +512,13 @@ function details(data) {
           )}<button id="dreset" class="text-btn">清除明细筛选</button></div>`
       : ""
   }
-  <div class="scroll-table"><table><thead><tr>${["时间", "平台 / 入口", "模型 / 项目", ...keys.map((k) => metNames[k]), "数据来源"].map((s) => `<th>${s}</th>`).join("")}</tr></thead><tbody>${data.records.map((r) => `<tr><td class="num">${esc(timeAt(r.timestamp, state.tz))}</td><td>${esc(r.platform)}<small>${esc(r.entry_name)}</small></td><td>${esc(r.model)}<small>${esc(r.project)}</small></td>${keys.map((k) => `<td class="num" title="${full(r[k])}">${r[k] == null ? "—" : full(r[k])}</td>`).join("")}<td>${esc(r.source)}</td></tr>`).join("")}</tbody></table></div>
+  <div class="scroll-table"><table><thead><tr>${["时间", "平台 / 入口", "模型 / 项目", ...keys.map((k) => metNames[k]), "数据来源"].map((s) => `<th>${s}</th>`).join("")}</tr></thead><tbody>${data.records.map((r) => `<tr><td class="num">${esc(timeAt(r.timestamp, state.tz))}</td><td>${esc(r.platform)}<small>${esc(r.entry_name)}</small></td><td>${esc(r.model)}<small>${esc(r.project)}</small></td>${keys.map((k) => `<td class="num" title="${full(r[k])}">${r[k] == null ? "—" : full(r[k])}</td>`).join("")}<td>${esc(r.source)}<small>${esc(r.account)} · ${esc(r.task)}</small><button class="text-btn" data-evidence="${esc(r.uid)}">核对 / 更正</button></td></tr>`).join("")}</tbody></table></div>
   <div class="pager"><span>“—” 表示来源未提供该项</span><button class="small-btn" id="prev" ${data.page === 0 ? "disabled" : ""}>上一页</button><span class="num">${data.page + 1} / ${pages}</span><button class="small-btn" id="next" ${data.page + 1 >= pages ? "disabled" : ""}>下一页</button></div></section>`;
 }
+main.addEventListener("click", e=>{
+  const uid=e.target.closest("[data-evidence]")?.dataset.evidence;
+  if(uid) inspect(uid,async()=>{views.clear();rankViews.length=0;shownKey="";await loadOptions();await render();});
+});
 function draw(data) {
   const detail = !!state.dm,
     active = state.entry ? registry.entries[state.entry] : null;
@@ -494,12 +527,12 @@ function draw(data) {
   const controls = detail ? exportButtons() : exportButtons() + syncButton();
   if (!$("#view-body")) main.innerHTML = '<div id="view-head"></div><section id="scope-controls" class="filter-sticky" aria-label="统计范围"></section><div id="view-body"></div>';
   $("#view-head").innerHTML = (detail ? `<button class="back text-btn" id="back">${icon("back",15)}返回总览</button>` : "") + pageHead(
-      detail ? state.dm : "用量总览",
+      detail ? state.dm : registry.codex_profile ? "Codex · " + registry.codex_profile : "用量总览",
       detail ? esc(state.dv) + ' <span class="dot-divider">/</span> ' + description : description,
       controls);
   drawFilters(data);
   if (reuseOverview) {
-    updateSummary($(".hero"),data.totals);
+    updateSummary($(".hero"),data.totals,data.pricing);
     $(".entry-card").outerHTML = entryPanel(data,registry.entries);
   } else {
     chartObserver?.disconnect();
@@ -507,7 +540,7 @@ function draw(data) {
     disposeSelects($("#view-body"));
     $("#view-body").innerHTML =
       (data.totals.n
-        ? summaryCard(data.totals)
+        ? summaryCard(data.totals,data.pricing)
         : empty(
             "当前范围没有实测记录",
             "可调整时间与筛选，或在数据接入页更新本机来源、导入逐请求文件。",
@@ -519,6 +552,32 @@ function draw(data) {
           ? `<div class="overview-grid"><section id="rank" class="rank"></section>${entryPanel(data,registry.entries)}</div>`
           : "");
   }
+  const note = $(".token-comparison", main);
+  if (note) {
+    const scopeKey = JSON.stringify([data.scope.first, data.scope.last, data.scope.tz, state.period,
+      state.vendor, state.model, state.entry, state.project, state.source, state.dv, state.dm, state.de, state.dp, state.ds]);
+    const choice = chooseReference(scopeKey, data.totals.total);
+    const caption = referenceCaption(choice, data.totals.total_n < data.totals.n);
+    if (note.textContent !== caption) {
+      note.textContent = caption;
+      if (choice && !matchMedia("(prefers-reduced-motion: reduce)").matches)
+        note.animate([{opacity:.35},{opacity:1}], {duration:180});
+    }
+    note.hidden = !choice;
+    const days = data.trend.reduce((n, row) => n + (row.n > 0 ? 1 : 0), 0);
+    $(".active-days", main).textContent = `活跃 ${full(days)} 天`;
+  }
+  const openPricing = () =>
+    openPricingModal(data.pricing, {
+      onChanged: async () => {
+        views.clear();
+        rankViews.length = 0;
+        shownKey = "";
+        await render();
+      },
+      fetchPricing: () => shown?.pricing,
+    });
+  if ($("#show-pricing")) $("#show-pricing").onclick = openPricing;
   const breakdown = $("#show-breakdown");
   if (breakdown)
     breakdown.onclick = () => {
@@ -535,13 +594,15 @@ function draw(data) {
       ]
         .map(
           (key) =>
-            `<tr data-field="${key}"><td>${metNames[key]}</td><td class="num">${full(totals[key])}</td><td class="num">${full(totals[key + "_n"])} / ${full(totals.n)}</td></tr>`,
+            `<tr data-field="${key}"><td>${metNames[key]}</td><td class="num">${full(totals[key])}</td><td class="num">${full(totals[key + "_n"])} / ${full(totals.n)}${totals[key+"_n"]<totals.n ? `<button class="text-btn" data-missing="${key}">查看缺失</button>` : ""}</td></tr>`,
         )
         .join("");
       $("#modal-content").innerHTML =
         `<div class="dialog-head"><h2>用量拆分</h2><button id="close-breakdown" aria-label="关闭">${icon("x")}</button></div>
       <div class="scroll-table"><table><thead><tr><th>统计项</th><th>完整 Token 数</th><th>已知 / 全部记录</th></tr></thead><tbody>${rows}</tbody></table></div>
-      <p class="breakdown-note">缓存读写包含在输入中，推理包含在输出中。每项仅合计有可靠数值的记录。</p>`;
+      <div class="breakdown-foot"><p class="breakdown-note">缓存读写包含在输入中，推理包含在输出中。每项仅合计有可靠数值的记录。</p><button type="button" class="text-btn" id="open-pricing-from-breakdown">查看等效 API 价值 →</button></div>`;
+      for (const btn of $$("[data-missing]",modal)) btn.onclick=()=>{modal.close(); filtersOpen=true; navigate({missing:btn.dataset.missing,page:null});};
+      $("#open-pricing-from-breakdown").onclick = () => { modal.close(); openPricing(); };
       $("#close-breakdown").onclick = () => modal.close();
       modal.showModal();
     };
@@ -554,7 +615,8 @@ function draw(data) {
   if ($("#go-sources")) $("#go-sources").onclick = () => tab("sources");
   if (!detail) {
     renderRank(data);
-    for (const button of $$("[data-entry-filter]")) button.onclick = () => navigate({entry:button.dataset.entryFilter,page:null},{push:true,top:true});
+    const entryCard = $(".entry-card");
+    if (entryCard) bindEntries(entryCard);
   } else {
     mountSelects($("#view-body"));
     $("#detail-filter").onclick = () => {
@@ -591,7 +653,6 @@ async function render() {
     el.setAttribute("aria-current", el.dataset.nav === t ? "page" : "false");
   }
   selectSegment("period", state.period);
-  if (t !== "book") bookRows = null;
   try {
     if (t === "home") {
       if (!groups.some(([v]) => v === state.group)) state.group = "model";
@@ -624,6 +685,7 @@ async function render() {
       chartObserver = null;
       disposeSelects(main);
       renderSources(main, rows, {
+        diagnosis:state.diagnosis,
         tz: state.tz,
         pageHead,
         syncButton,
@@ -637,19 +699,19 @@ async function render() {
       });
       updateJob();
     } else {
-      const rows = bookRows || await api("/api/notes");
+      const q = new URLSearchParams(Object.entries(state).filter(([k])=>k.startsWith("book_")).map(([k,v])=>[k.slice(5),v]));
+      const rows = await api("/api/notes?"+q);
       if (serial !== version) return;
       chartObserver?.disconnect();
       chartObserver = null;
       disposeSelects(main);
-      bookRows = rows;
       renderBook(main, rows, {
         registry,
         pageHead,
         tz: state.tz,
         booktab: state.booktab || "media",
         navigate,
-        refresh: () => { bookRows = null; return render(); },
+        refresh: render,
       });
     }
   } catch (err) {
@@ -673,7 +735,7 @@ async function render() {
 }
 async function start() {
   try {
-    const [,status] = await Promise.all([loadOptions(),api("/api/status")]);
+    const [,status] = await Promise.all([loadOptions(),api("/api/status"),initAppearance(()=>state.tz || detected)]);
     knownRevision = status.revision;
     lastFinished = status.finished;
     job = status;
@@ -681,8 +743,50 @@ async function start() {
     toast(err.message);
   }
   await render();
+  updateJob();
   lastDay = timeAt(new Date(), state.tz || detected, true);
   schedule(job.running ? 1800 : 15000);
 }
+function bindEntries(card) {
+  const items = $$("[data-entry-filter],[data-arc]", card);
+  const key = node => node?.dataset.entryFilter ?? node?.dataset.arc;
+  function highlight(target) {
+    const active = key(target?.closest("[data-entry-filter],[data-arc]"));
+    card.classList.toggle("entry-active", active != null);
+    for (const item of items) item.classList.toggle("entry-match", active != null && key(item) === active);
+  }
+  card.onpointerover = card.onfocusin = e => highlight(e.target);
+  card.onpointerleave = () => highlight(card.contains(document.activeElement) ? document.activeElement : null);
+  card.onfocusout = e => highlight(e.relatedTarget);
+  card.onclick = e => {
+    const entry = key(e.target.closest("[data-entry-filter],[data-arc]"));
+    if (entry != null) navigate({entry,page:null},{push:true,top:true});
+  };
+}
+const mast = $(".mast");
+new ResizeObserver(() => document.documentElement.style.setProperty("--mast-height", mast.offsetHeight + "px")).observe(mast);
+const rimPointer = matchMedia("(hover:hover) and (pointer:fine) and (prefers-reduced-motion:no-preference)");
+let litCard, rimFrame, pointerX, pointerY;
+function clearRim() {
+  cancelAnimationFrame(rimFrame); rimFrame = 0;
+  litCard?.classList.remove("lit"); litCard = null;
+}
+main.addEventListener("pointermove", e => {
+  if (!rimPointer.matches || e.pointerType !== "mouse") return;
+  const card = e.target.closest(".hero-total,.entry-card,.trend-card,.quota-panel");
+  if (card !== litCard) { clearRim(); litCard = card; }
+  if (!card) return;
+  pointerX = e.clientX; pointerY = e.clientY;
+  if (!rimFrame) rimFrame = requestAnimationFrame(() => {
+    rimFrame = 0;
+    const rect = card.getBoundingClientRect();
+    card.style.setProperty("--mx", (pointerX-rect.left)+"px");
+    card.style.setProperty("--my", (pointerY-rect.top)+"px");
+    card.classList.add("lit");
+  });
+}, {passive:true});
+main.addEventListener("pointerleave",clearRim);
+rimPointer.addEventListener("change",clearRim);
+window.addEventListener("meter-theme",()=>chartObserver?.theme());
 document.addEventListener("visibilitychange", () => { if (!document.hidden) schedule(50); });
 start();

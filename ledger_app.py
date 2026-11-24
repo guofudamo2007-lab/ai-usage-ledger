@@ -4,7 +4,9 @@ import argparse
 import csv
 import io
 import json
+import socket
 import sqlite3
+import subprocess
 import threading
 import time
 import webbrowser
@@ -15,10 +17,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
-from ledger import manual, query
+from ledger import evidence, agy_quota, appearance, codex_search, manual, pricing, query, quota, subscriptions
 from ledger.collect import sync
 from ledger.core import ENTRIES, FIELDS, connect, digest, initialize
-from ledger.imports import import_file
+from ledger.imports import import_file, undo
 
 ROOT = Path(__file__).resolve().parent
 PORT = 17863
@@ -31,8 +33,15 @@ STATIC = {
 }
 for asset, mime in (("uplot.js", "text/javascript"), ("tom-select.js", "text/javascript"), ("components.css", "text/css"), ("icons.svg", "image/svg+xml")):
     STATIC[f"/vendor/{asset}"] = (f"vendor/{asset}", mime)
-for module in ("ui", "books", "instruments"):
+for module in ("ui", "books", "instruments", "reference-data", "references", "appearance", "review", "pricing"):
     STATIC[f"/{module}.js"] = (f"{module}.js", "text/javascript")
+
+
+def open_widget(port, database, zone=None):
+    binary = ROOT / "MeterWidget.exe"
+    if not binary.is_file():
+        raise ValueError("缺少 MeterWidget.exe，请解压完整便携包")
+    subprocess.Popen([str(binary), str(port), zone or "", str(database.resolve().parent / "widget-window.json")], cwd=ROOT)
 
 
 class Collector:
@@ -128,7 +137,7 @@ class Handler(BaseHTTPRequestHandler):
                 *FIELDS,
                 "net",
                 "source",
-                "uid",
+                "uid","account","task","raw_project",
             ]
             buf = io.StringIO(newline="")
             writer = csv.DictWriter(buf, fieldnames=keys)
@@ -175,11 +184,63 @@ class Handler(BaseHTTPRequestHandler):
                 threading.Thread(target=self.server.shutdown, daemon=True).start()
                 return
         if not write and path == "/api/instance":
-            return self.send_json({"app": "meter", "version": "1.2", "instance": self.server.identity})
+            return self.send_json({"app": "meter", "version": "1.7-preview", "instance": self.server.identity})
         with closing(connect(self.server.job.file)) as db:
+            if path == "/api/appearance":
+                prefs = appearance.write(db, json.loads(body)) if write else appearance.read(db)
+                return self.send_json(dict(settings=prefs,presets=appearance.PRESETS,fonts=appearance.FONTS))
+            if path == "/api/pricing":
+                return self.send_json(pricing.write_override(db, json.loads(body)) if write else pricing.catalogue_payload(db))
+            if path == "/api/widget/open" and write:
+                zone = args.get("tz")
+                if zone:
+                    query.scope({"tz":zone,"period":"today"})
+                open_widget(self.server.server_port, self.server.job.file, zone)
+                return self.send_json({"ok":True})
+            if path == "/api/widget" and not write:
+                data = {"appearance":appearance.read(db)}
+                if args.get("period") == "quota":
+                    snapshots = [("Codex",quota.cached(db))]
+                    if not codex_search.setting(db,"codex_only",False):
+                        snapshots.append(("Antigravity",codex_search.setting(db,"agy_quota_snapshot")))
+                        snapshots.extend((s[0],codex_search.setting(db,"subscription:" + k)) for k,s in subscriptions.SERVICES.items())
+                    data["quotas"] = [{"name":name, "at":snap["at"], "windows":snap["windows"]} for name,snap in snapshots if snap]
+                else:
+                    view = query.view(db, {"period":args.get("period","today"),"tz":args.get("tz","UTC")})
+                    data.update(totals=view["totals"],top=next((r["model"] for r in view["rank"] if r["total"] is not None),None),scope=view["scope"],value=view["totals"].get("value"),value_n=view["totals"].get("value_n",0))
+                return self.send_json(data)
+            if path.startswith("/api/subscription/"):
+                key = path.removeprefix("/api/subscription/")
+                imported = None
+                if write and args.get("import") == "1":
+                    if len(body) > 1024 * 1024:
+                        raise ValueError("额度 JSON 上限 1 MiB")
+                    imported = json.loads(body)
+                    if not isinstance(imported, dict):
+                        raise ValueError("请选择额度 JSON 对象")
+                return self.send_json(subscriptions.handle(db, key, self.server.job.file.parent / "quota-snapshots", write=write,
+                    force=args.get("force") == "1", imported=imported))
+            if path == "/api/codex-quota":
+                return self.send_json(quota.refresh(db, force=args.get("auto") != "1") if write else quota.cached(db))
+            if path == "/api/agy-quota":
+                return self.send_json(agy_quota.snapshot(db, self.server.job.file.parent / "agy-quota",
+                    refresh=write, force=write and args.get("force") == "1"))
+            if path == "/api/batch" and not write:
+                return self.send_json(evidence.batch_rows(db,int(args["id"]),int(args.get("page",0))))
+            if path == "/api/manage" and not write:
+                return self.send_json(evidence.management(db,int(args.get("page",0))))
+            if path == "/api/evidence" and not write:
+                return self.send_json(evidence.review(db,args.get("uid","")))
             if write:
+                if path == "/api/correct":
+                    return self.send_json(evidence.correct(db,json.loads(body)))
+                if path == "/api/undo":
+                    return self.send_json(undo(db,json.loads(body)["batch"]))
+                if path == "/api/codex-search":
+                    codex_search.set_backup(db, json.loads(body)["backup"])
+                    return self.send_json(codex_search.status(db))
                 if path == "/api/import":
-                    return self.send_json(import_file(db, body, args.get("format")))
+                    return self.send_json(import_file(db, body, args.get("format"), preview=args.get("preview")=="1"))
                 if path == "/api/notes":
                     return self.send_json(manual.save(db, json.loads(body)))
                 if path == "/api/notes/remove":
@@ -187,17 +248,21 @@ class Handler(BaseHTTPRequestHandler):
                         db.execute("DELETE FROM notes WHERE id=?", (json.loads(body)["id"],))
                     return self.send_json({"ok": True})
             elif path == "/api/status":
-                return self.send_json(dict(self.server.job.snapshot(), revision=query.revision(db)))
+                return self.send_json(dict(self.server.job.snapshot(), revision=query.revision(db), alerts=evidence.alerts(db)))
             elif path == "/api/view":
                 return self.send_json(query.view(db, args))
             elif path == "/api/options":
                 return self.send_json(
-                    {"values": query.options(db), "entries": {k: v[0] for k, v in ENTRIES.items()}}
+                    {"values": query.options(db), "entries": {k: v[0] for k, v in ENTRIES.items()},
+                     "subscriptions": subscriptions.catalogue(db, self.server.job.file.parent / "quota-snapshots"),
+                     "codex_profile": codex_search.current_root(db).name if codex_search.setting(db, "codex_only", False) else None}
                 )
             elif path == "/api/sources":
                 return self.send_json(query.sources(db))
+            elif path == "/api/codex-search":
+                return self.send_json(codex_search.status(db))
             elif path == "/api/notes":
-                return self.send_json(manual.list_notes(db))
+                return self.send_json(manual.list_notes(db,args))
             elif path == "/api/export":
                 return self.export(db, args)
         self.send_json({"error": "未找到此资源"}, 404)
@@ -221,11 +286,20 @@ class Handler(BaseHTTPRequestHandler):
         self.guarded(True)
 
 
+class LocalServer(ThreadingHTTPServer):
+    def server_bind(self):
+        # Windows SO_REUSEADDR can let two ledgers listen on the same port.
+        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            self.allow_reuse_address = False
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
+
+
 def serve(args, file):
     identity = digest("meter-install", str(file.resolve()))
     for port in range(args.port, args.port + 16):
         try:
-            server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+            server = LocalServer(("127.0.0.1", port), Handler)
             break
         except OSError:
             conn = HTTPConnection("127.0.0.1", port, timeout=0.8)
@@ -233,7 +307,9 @@ def serve(args, file):
                 conn.request("GET", "/api/instance")
                 reply = json.loads(conn.getresponse().read(512))
                 if reply.get("instance") == identity:
-                    if not args.no_browser:
+                    if args.widget:
+                        open_widget(port, file)
+                    elif not args.no_browser:
                         webbrowser.open(f"http://127.0.0.1:{port}/")
                     print(f"账本已运行 http://127.0.0.1:{port}/")
                     return
@@ -254,7 +330,9 @@ def serve(args, file):
         threading.Thread(target=periodic, daemon=True).start()
     link = f"http://127.0.0.1:{server.server_port}/"
     print(f"AI 用量账本  {link}\n关闭本窗口或按 Ctrl+C 即可退出。", flush=True)
-    if not args.no_browser:
+    if args.widget:
+        open_widget(server.server_port, file)
+    elif not args.no_browser:
         webbrowser.open(link)
     with server:
         try:
@@ -265,14 +343,26 @@ def serve(args, file):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="AI 用量账本")
-    parser.add_argument("--data-dir", type=Path, default=ROOT / "private")
+    parser.add_argument("--data-dir", type=Path)
+    parser.add_argument("--codex-home", type=Path, help="为指定 Codex 配置目录打开独立账本，仅采集该目录的 Codex 用量")
     parser.add_argument("--port", type=int, default=PORT)
     parser.add_argument("--no-browser", action="store_true")
+    parser.add_argument("--widget", action="store_true", help="打开桌面小组件")
     parser.add_argument("--no-sync", action="store_true", help="仅浏览数据库，暂停后台采集")
     parser.add_argument("--collect", action="store_true", help="更新统计后退出")
     args = parser.parse_args()
-    file = args.data_dir / "ledger.sqlite3"
+    directory = args.data_dir or ROOT / "private"
+    if args.codex_home:
+        profile = args.codex_home.resolve()
+        if not profile.is_dir():
+            parser.error("Codex 配置目录不存在")
+        directory = directory / "codex-profiles" / digest("codex-home", str(profile).casefold())
+    file = directory / "ledger.sqlite3"
     initialize(file)
+    if args.codex_home:
+        with closing(connect(file)) as db, db:
+            codex_search.save(db, "home", str(profile))
+            codex_search.save(db, "codex_only", True)
     if args.collect:
         print(json.dumps(sync(file), ensure_ascii=False))
     else:

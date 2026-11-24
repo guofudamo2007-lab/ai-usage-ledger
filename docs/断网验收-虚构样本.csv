@@ -1,0 +1,5 @@
+schema,entry,request_id,timestamp,model,project,total,input,output,cache_read,cache_write,reasoning
+meter.usage.v1,openai-api,offline-fixture-a,2026-04-12T15:30:00Z,gpt-fictional,虚构断网验收,120,100,20,75,,5
+meter.usage.v1,openai-api,offline-fixture-b,2026-04-12T15:31:00Z,gpt-fictional,虚构断网验收,50,,,,,
+meter.usage.v1,openai-api,offline-fixture-c,2026-04-12T15:32:00Z,gpt-fictional,虚构断网验收,0,0,0,0,,
+

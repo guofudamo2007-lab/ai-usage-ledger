@@ -6,6 +6,9 @@ import ntpath
 import posixpath
 import re
 import sqlite3
+import uuid
+from contextlib import closing
+from pathlib import Path
 from datetime import datetime, timezone
 from pathlib import PureWindowsPath
 from typing import NamedTuple
@@ -15,6 +18,12 @@ UNKNOWN_VENDOR = "厂商未确认"
 FIELDS = ("total", "input", "output", "cache_read", "cache_write", "reasoning")
 ENTRIES = {
     "agy": ("Antigravity", "Google", "auto", "本机会话库 · 调用与步骤元数据"),
+    "agy-shared": (
+        "Antigravity · 多处发现",
+        "Google",
+        "derived",
+        "同一请求出现在多个入口，实际入口未确认",
+    ),
     "agy-cli": ("Antigravity CLI", "Google", "auto", "本机 CLI 会话库 · 调用与步骤元数据"),
     "agy-ide": ("Antigravity IDE", "Google", "auto", "本机 IDE 会话库 · 调用与步骤元数据"),
     "codex": ("Codex", "OpenAI", "auto", "本机 rollout · JSONL / Zstandard"),
@@ -123,7 +132,7 @@ def counters(
     if input is not None and output is not None:
         if total is not None and total != input + output:
             raise ValueError("输入与输出之和不等于总量")
-        values["total"] = input + output
+        values["total"] = count(input + output)
     if not any(value is not None for value in values.values()):
         raise ValueError("缺少实测用量字段")
     for part, whole in (
@@ -133,9 +142,16 @@ def counters(
         (input, values["total"]),
         (output, values["total"]),
         (cache_read, values["total"]),
+        (cache_write, values["total"]),
+        (reasoning, values["total"]),
     ):
         if part is not None and whole is not None and part > whole:
             raise ValueError("子项超过对应总量")
+    if values["total"] is not None:
+        min_input = max(input or 0, cache_read or 0, cache_write or 0)
+        min_output = max(output or 0, reasoning or 0)
+        if min_input + min_output > values["total"]:
+            raise ValueError("已知输入、输出子项超过可分配总量")
     return values
 
 
@@ -162,14 +178,32 @@ def connect(file):
 
 def initialize(file):
     file.parent.mkdir(parents=True, exist_ok=True)
-    db = connect(file)
+    existing = file.exists() and file.stat().st_size > 0
+    with closing(connect(file)) as db:
+        _initialize(db, file, existing)
+
+
+def _initialize(db, file, existing):
     version = db.execute("PRAGMA user_version").fetchone()[0]
-    if version > 3:
-        db.close()
+    if version > 4:
         raise ValueError("此账本由更新版本创建，请使用对应版本打开")
     with db:
         db.execute("PRAGMA journal_mode=WAL")
-        db.executescript("""
+        db.execute("BEGIN IMMEDIATE")
+        version = db.execute("PRAGMA user_version").fetchone()[0]
+        if version == 4:
+            return
+        if existing:
+            folder = file.parent / "backups"
+            folder.mkdir(exist_ok=True)
+            dest = folder / f"before-v4-{uuid.uuid4().hex}.sqlite3"
+            pending = dest.with_suffix(".partial")
+            with closing(connect(file)) as src, closing(sqlite3.connect(pending)) as backup:
+                src.backup(backup)
+                if backup.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
+                    raise ValueError("升级备份未通过完整性检查")
+            pending.replace(dest)
+        ddl = """
             CREATE TABLE IF NOT EXISTS events (
                 uid TEXT PRIMARY KEY, ts INTEGER NOT NULL, entry TEXT NOT NULL, vendor TEXT NOT NULL,
                 model TEXT NOT NULL, project TEXT NOT NULL, source TEXT NOT NULL,
@@ -189,19 +223,23 @@ def initialize(file):
             CREATE TABLE IF NOT EXISTS scans (
                 entry TEXT PRIMARY KEY, checked TEXT, files INTEGER, failures INTEGER, skipped INTEGER, present INTEGER
             );
+            CREATE TABLE IF NOT EXISTS codex_search_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS codex_thread_index (
+                id TEXT PRIMARY KEY, total INTEGER, located INTEGER NOT NULL DEFAULT 0
+            );
             CREATE TABLE IF NOT EXISTS notes (
                 id TEXT PRIMARY KEY, kind TEXT NOT NULL, day TEXT NOT NULL, entry TEXT NOT NULL, data TEXT NOT NULL, updated TEXT
             );
-        """)
-        db.execute("BEGIN IMMEDIATE")
-        version = db.execute("PRAGMA user_version").fetchone()[0]
+        """
+        for statement in (ddl + Path(__file__).with_name("schema4.sql").read_text("utf-8")).split(
+            ";"
+        ):
+            if statement.strip():
+                db.execute(statement)
         if "updated" not in {r["name"] for r in db.execute("PRAGMA table_info(notes)")}:
             db.execute("ALTER TABLE notes ADD COLUMN updated TEXT")
-        if version < 3:
-            # Earlier cursors did not distinguish same-named workspaces. Replay the sources.
-            db.execute("DELETE FROM files")
-        db.execute("PRAGMA user_version=3")
-    db.close()
+        # New parser signatures cause a safe replay, while inaccessible file cursors remain available.
+        db.execute("PRAGMA user_version=4")
 
 
 INSERT = (
@@ -232,7 +270,7 @@ def mark_usage_changes(db, before):
         db.execute("UPDATE usage_revision SET value=value+1 WHERE id=1")
 
 
-def ingest(db, rows):
+def ingest(db, rows, origin="direct", stats=None):
     if not rows:
         return 0
     # Serialize label allocation with concurrent collectors before looking up names.
@@ -250,20 +288,18 @@ def ingest(db, rows):
     ]
     rows = [(*r[:5], labels.get(r[5], r[5]), *r[6:]) for r in rows]
     before = db.total_changes
+    if rows[0][2].startswith("agy"):
+        from .evidence import observe
+
+        stats = stats if stats is not None else {"enriched": 0, "conflicts": 0}
+        origins = origin if isinstance(origin, list) else [origin] * len(rows)
+        added = sum(
+            observe(db, r, location, stats) for r, location in zip(rows, origins, strict=True)
+        )
+        mark_usage_changes(db, before)
+        return added
     db.executemany(INSERT, rows)
     added = db.total_changes - before
     db.executemany("UPDATE events SET project=? WHERE uid=? AND project=?", revised)
-    # A live trajectory's model name or workspace can arrive after its usage row.
-    # Only enrich unknown labels. Later copies never increment or overwrite counts.
-    if rows and rows[0][2].startswith("agy"):
-        db.executemany(
-            """UPDATE events SET model=?, vendor=? WHERE uid=?
-                       AND (model LIKE 'AGY #% · 型号未确认' OR model='AGY · 型号未记录') AND model<>?""",
-            ((r[4], r[3], r[0], r[4]) for r in rows if not r[4].startswith("AGY ")),
-        )
-        db.executemany(
-            "UPDATE events SET project=? WHERE uid=? AND project=?",
-            ((r[5], r[0], UNKNOWN) for r in rows if r[5] != UNKNOWN),
-        )
     mark_usage_changes(db, before)
     return added
