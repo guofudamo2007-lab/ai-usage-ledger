@@ -2,13 +2,13 @@
 
 在 Windows 本机核对不同厂商、入口和模型的实际 Token 用量。选好日期和统计时区，就能从每日趋势和模型排行一路查到原始用量记录。项目、费用、额度和产出也可以留在本机。
 
-**Windows x64 便携版**包含运行环境。解压到可写目录，双击 **启动账本.cmd**，默认浏览器会打开本机账本。首次启动会检查当前用户已有的 Antigravity 和 Codex 日志。[下载便携版](https://github.com/guofudamo2007-lab/ai-usage-ledger/releases/latest/download/Meter-Windows-x64.zip) · [发行记录与校验值](https://github.com/guofudamo2007-lab/ai-usage-ledger/releases/latest) · [使用与接入说明](使用说明.md)
+**视频演示版 · Windows x64 · 1.7-preview** 自带运行环境。下载 ZIP 并完整解压到可写目录，双击 **启动账本.cmd**。桌面小组件可从主界面右上角打开。[直接下载视频同款便携包](https://github.com/guofudamo2007-lab/ai-usage-ledger/releases/download/v1.7-preview/Meter-1.7-preview-Windows-x64.zip) · [预发行说明与 SHA-256](https://github.com/guofudamo2007-lab/ai-usage-ledger/releases/tag/v1.7-preview) · [使用与升级说明](使用说明.md)
 
 ![刻度总览，图中模型、项目与用量均为虚构演示数据](docs/overview-fictional.png)
 
 预览使用独立的虚构账本。可以看日期选中、趋势悬停、排序和模型明细的实际操作。[交互录屏](docs/interaction-fictional.webp) · [窄窗口全图](docs/narrow-fictional.png)
 
-本地验收版 **1.7-preview** 在已有 1.6 工作区上继续开发。此版增加来源健康诊断、导入预检与批次撤销、项目归并、逐条更正和账号周期筛选。上方发行下载指向已公开的版本。[升级与核对说明](使用说明.md#核对与更正)
+**1.7-preview** 支持等效 API 价值、自定义模型单价、来源健康诊断、导入预检与批次撤销、项目归并和逐条更正。[稳定版下载](https://github.com/guofudamo2007-lab/ai-usage-ledger/releases/latest) · [升级与核对说明](使用说明.md#核对与更正)
 
 ## 能看什么
 
@@ -53,7 +53,7 @@ node --test tests/references.test.mjs
 .\.venv\Scripts\python.exe -B -X utf8 tools\package.py --runtime --archive
 ```
 
-生成的便携包位于 `release/Meter-Windows-x64.zip`。本版使用 CPython 3.14.6 x64 和 tzdata 2026.6 构建。打包时会用 Windows 的 .NET Framework 4.x 编译器和 WPF 程序集生成 `MeterWidget.exe`。
+生成的便携包位于 `release/Meter-1.7-preview-Windows-x64.zip`。本版使用 CPython 3.14.6 x64 和 tzdata 2026.6 构建。打包时会用 Windows 的 .NET Framework 4.x 编译器和 WPF 程序集生成 `MeterWidget.exe`。
 
 参照的单位容量已随前端提供。开发时可用装有 `tiktoken==0.12.0` 的 Python 执行 `python tools/build_references.py --check` 复算微量样本与三部固定版本的作品。首次复算会下载校准材料到项目的 `.qa` 目录。[校准脚本](tools/build_references.py)
 
