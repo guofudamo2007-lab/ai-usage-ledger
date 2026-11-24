@@ -29,11 +29,14 @@ namespace Meter {
         readonly TextBlock stamp = new TextBlock();
         readonly Dictionary<string,Button> tabs = new Dictionary<string,Button>();
         readonly DispatcherTimer timer = new DispatcherTimer();
-        readonly Button pin;
+        readonly DispatcherTimer followTimer = new DispatcherTimer();
+        readonly Button pin, refreshBtn;
+        readonly System.Windows.Shapes.Path refreshGlyph;
         readonly ScrollViewer scroller = new ScrollViewer();
         string period = "today";
         int serial;
-        string displayedPeriod;
+        string displayedPeriod, lastRaw, loadingPeriod;
+        DateTime lastActivate = DateTime.MinValue;
 
         [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern IntPtr FindWindow(string cls,string title);
         [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr window);
@@ -127,6 +130,8 @@ namespace Meter {
             var head=new DockPanel {LastChildFill=true};DockPanel.SetDock(head,Dock.Top);layout.Children.Add(head);
             var close=Action("×","关闭小组件",Close);close.Content=Glyph("M2,2 L12,12 M12,2 L2,12",10,"sub");AutomationProperties.SetName(close,"关闭小组件");DockPanel.SetDock(close,Dock.Right);head.Children.Add(close);
             pin=Action("","切换窗口置顶",()=>{Topmost=!Topmost;PinLabel();});PinLabel();DockPanel.SetDock(pin,Dock.Right);head.Children.Add(pin);
+            refreshGlyph=(System.Windows.Shapes.Path)Glyph("M12.2,7.5 A5.2,5.2 0 1,1 10.7,3.8 M10.7,1.3 L10.7,3.8 L8.2,3.8",12,"sub");
+            refreshBtn=Action("","立即同步最新数据",()=>ForceRefresh());refreshBtn.Content=refreshGlyph;AutomationProperties.SetName(refreshBtn,"刷新数据");DockPanel.SetDock(refreshBtn,Dock.Right);head.Children.Add(refreshBtn);
             var brand=new StackPanel {Orientation=Orientation.Horizontal, Background=Brushes.Transparent,Cursor=Cursors.SizeAll};
             brand.Children.Add(Glyph("M1,9 L4,8 7,20 4,21 Z M6,4 L9,3 13,19 10,20 Z M12,1 L15,0 20,17 17,18 Z",19,"accent",true));
             var name=Label("刻度",15,"fg");name.FontWeight=FontWeights.SemiBold;name.Margin=new Thickness(7,0,8,0);brand.Children.Add(name);
@@ -144,8 +149,10 @@ namespace Meter {
             DockPanel.SetDock(rule,Dock.Bottom);layout.Children.Add(rule);
             open.FontSize=10;open.SetResourceReference(Control.ForegroundProperty,"sub");
             scroller.VerticalScrollBarVisibility=ScrollBarVisibility.Auto;scroller.HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled;scroller.Content=body;layout.Children.Add(scroller);
-            Loaded+=(s,e)=>Update();timer.Interval=TimeSpan.FromSeconds(30);timer.Tick+=(s,e)=>Update();timer.Start();
-            Closed+=(s,e)=>{timer.Stop();try{Directory.CreateDirectory(Path.GetDirectoryName(positionFile));File.WriteAllText(positionFile,json.Serialize(new {x=Left,y=Top,pin=Topmost?1:0}));}catch(IOException){}};
+            Loaded+=(s,e)=>Update();timer.Interval=TimeSpan.FromSeconds(8);timer.Tick+=(s,e)=>Update();timer.Start();
+            followTimer.Interval=TimeSpan.FromMilliseconds(1200);followTimer.Tick+=(s,e)=>Update();
+            Activated+=(s,e)=>{if((DateTime.UtcNow-lastActivate).TotalSeconds>=1.5){lastActivate=DateTime.UtcNow;Update();}};
+            Closed+=(s,e)=>{timer.Stop();followTimer.Stop();try{Directory.CreateDirectory(Path.GetDirectoryName(positionFile));File.WriteAllText(positionFile,json.Serialize(new {x=Left,y=Top,pin=Topmost?1:0}));}catch(IOException){}};
         }
         void PinLabel(){
             pin.Content=Glyph("M5,1 L12,1 M6,1 L6,6 3,9 14,9 11,6 11,1 M8.5,9 L8.5,14",13,Topmost?"accent":"sub");
@@ -231,8 +238,13 @@ namespace Meter {
             cell.ToolTip=group+" "+(row.ContainsKey("label")?row["label"]:caption)+"  ·  "+value+"\n快照 "+captured;
             return cell;
         }
-        void DrawQuota(IList sources){
-            stamp.Text="剩余额度 · 上次快照";
+        void DrawQuota(IList sources,bool syncing){
+            DateTimeOffset latest=DateTimeOffset.MinValue;
+            foreach(object s in sources){
+                var o=Obj(s);object atObj;DateTimeOffset dto;
+                if(o!=null && o.TryGetValue("at",out atObj) && atObj!=null && DateTimeOffset.TryParse(Convert.ToString(atObj),CultureInfo.InvariantCulture,DateTimeStyles.AssumeUniversal,out dto) && dto>latest) latest=dto;
+            }
+            stamp.Text=syncing?"剩余额度 · 更新中…":latest>DateTimeOffset.MinValue?"剩余额度 · "+latest.ToLocalTime().ToString("HH:mm"):"剩余额度 · 上次快照";
             foreach(object source in sources){
                 var src=Obj(source);
                 var groups=((IList)src["windows"]).Cast<object>().Select(Obj)
@@ -281,8 +293,8 @@ namespace Meter {
         void Empty(string title,string hint){
             var name=Label(title,17,"fg");name.Margin=new Thickness(0,22,0,4);body.Children.Add(name);body.Children.Add(Label(hint,12,"sub"));
         }
-        void DrawUsage(Dictionary<string,object> data) {
-            var t=Obj(data["totals"]);stamp.Text=zone;
+        void DrawUsage(Dictionary<string,object> data,bool syncing) {
+            var t=Obj(data["totals"]);stamp.Text=syncing?zone+" · 同步中…":zone;
             if(Convert.ToInt64(t["n"])==0){Empty("当前时段还没有用量记录","在账本的数据接入页更新来源。");return;}
             var summary=new DockPanel{Margin=new Thickness(0,8,0,0)};
             var records=Label(string.Format("{0:N0} 条记录",t["n"]),10,"sub");DockPanel.SetDock(records,Dock.Right);summary.Children.Add(records);
@@ -295,7 +307,7 @@ namespace Meter {
                 var usdLabel=Label("≈ $"+usd.ToString(fmt,CultureInfo.InvariantCulture),11,"accent");
                 usdLabel.FontFamily=new FontFamily("Consolas");
                 usdLabel.Margin=new Thickness(8,0,0,0);
-                usdLabel.ToolTip="等效 API 价值（按公开 API 标价估算，非实际账单）";
+                usdLabel.ToolTip="按公开 API 标价估算，仅供参考";
                 titleRow.Children.Add(usdLabel);
             }
             summary.Children.Add(titleRow);body.Children.Add(summary);
@@ -326,14 +338,43 @@ namespace Meter {
             }
             body.Children.Add(counts);
         }
+        async void ForceRefresh() {
+            lastRaw=null;
+            refreshGlyph.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty,"accent");
+            stamp.Text=period=="quota"?"剩余额度 · 更新中…":zone+" · 同步中…";
+            if(!followTimer.IsEnabled)followTimer.Start();
+            try {
+                using(var client=new WebClient()){
+                    client.Proxy=null;client.Encoding=System.Text.Encoding.UTF8;
+                    client.Headers["X-Ledger-Local"]="1";
+                    await client.UploadStringTaskAsync(origin+"/api/widget/refresh?period="+period,"POST","");
+                }
+            } catch(WebException) {
+                followTimer.Stop();
+                stamp.Text="刷新请求失败 · 可再试一次";
+                refreshGlyph.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty,"sub");
+                return;
+            }
+            Update();
+        }
         async void Update() {
+            if(loadingPeriod==period)return;
+            loadingPeriod=period;
             int ticket=++serial;
             try {
                 string raw;
                 using(var client=new WebClient()){client.Proxy=null;client.Encoding=System.Text.Encoding.UTF8;raw=await client.DownloadStringTaskAsync(origin+"/api/widget?period="+period+"&tz="+Uri.EscapeDataString(zone));}
                 if(ticket!=serial)return;
-                var data=json.Deserialize<Dictionary<string,object>>(raw);Theme(Obj(data["appearance"]));body.Children.Clear();
-                if(period=="quota") DrawQuota((IList)data["quotas"]); else DrawUsage(data);
+                if(raw==lastRaw && displayedPeriod==period)return;
+                lastRaw=raw;
+                var data=json.Deserialize<Dictionary<string,object>>(raw);
+                object syncObj;
+                bool syncing=data.TryGetValue("syncing",out syncObj) && syncObj!=null && Convert.ToBoolean(syncObj);
+                refreshGlyph.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty,syncing?"accent":"sub");
+                if(syncing){if(!followTimer.IsEnabled)followTimer.Start();}
+                else if(followTimer.IsEnabled)followTimer.Stop();
+                Theme(Obj(data["appearance"]));body.Children.Clear();
+                if(period=="quota") DrawQuota((IList)data["quotas"],syncing); else DrawUsage(data,syncing);
                 if(displayedPeriod!=period) {
                     scroller.ScrollToTop();
                     if(SystemParameters.ClientAreaAnimation && !SystemParameters.HighContrast) {
@@ -342,7 +383,8 @@ namespace Meter {
                     }
                     displayedPeriod=period;
                 }
-            } catch(Exception) {if(ticket==serial){period=displayedPeriod??period;SelectTab();stamp.Text="账本连接中断 · 稍后自动重试";}}
+            } catch(Exception) {if(ticket==serial){lastRaw=null;period=displayedPeriod??period;SelectTab();stamp.Text="账本连接中断 · 稍后自动重试";}}
+            finally {if(ticket==serial)loadingPeriod=null;}
         }
     }
 }

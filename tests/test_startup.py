@@ -8,7 +8,7 @@ import ledger_app as app
 
 
 class StartupTest(unittest.TestCase):
-    def exercise(self, version, running, expect_stop):
+    def exercise(self, version, running, expect_stop, build=None):
         with tempfile.TemporaryDirectory() as folder:
             file = Path(folder) / "ledger.sqlite3"
             args = SimpleNamespace(port=19000, no_sync=True, no_browser=True, widget=False, codex_home=None)
@@ -17,10 +17,12 @@ class StartupTest(unittest.TestCase):
                 dict(running=running), dict(ok=True),
             ]
             server = MagicMock(server_port=args.port)
+            if build is not None:
+                replies[0]["build"] = build
             with patch.object(app, "local_request", side_effect=replies) as request, patch.object(
                 app, "LocalServer", side_effect=[OSError(), server]
             ):
-                if running and version != app.VERSION:
+                if running and (version != app.VERSION or build != app.BUILD):
                     with self.assertRaises(SystemExit):
                         app.serve(args, file)
                 else:
@@ -36,4 +38,8 @@ class StartupTest(unittest.TestCase):
         self.exercise("1.6", True, False)
 
     def test_current_service_is_reused_without_migration(self):
+        self.exercise(app.VERSION, True, False, build=app.BUILD)
+
+    def test_previous_preview_without_build(self):
+        self.exercise(app.VERSION, False, True)
         self.exercise(app.VERSION, True, False)

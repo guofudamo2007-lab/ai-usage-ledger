@@ -9,20 +9,130 @@ from ledger.core import connect, counters, event, ingest, initialize, stamp
 
 class PricingTests(unittest.TestCase):
     def test_builtin_matcher_and_unknown_guard(self):
-        self.assertEqual(pricing.resolve("claude-opus-4-6")["input"], 5.0)
-        self.assertEqual(pricing.resolve("claude-opus-4-6")["output"], 25.0)
-        self.assertEqual(pricing.resolve("claude-sonnet-4-5-20250929")["input"], 3.0)
-        self.assertEqual(pricing.resolve("claude-opus-4-20250514")["input"], 15.0)
-        self.assertEqual(pricing.resolve("gpt-5.3-codex")["input"], 1.75)
-        self.assertEqual(pricing.resolve("gpt-5.3-codex")["output"], 14.0)
-        self.assertEqual(pricing.resolve("gpt-5-mini")["input"], 0.25)
-        self.assertEqual(pricing.resolve("models/gemini-3.1-pro-preview")["input"], 2.0)
-        self.assertEqual(pricing.resolve("gemini-2.5-flash")["output"], 2.5)
-        self.assertEqual(pricing.resolve("grok-4.6")["output"], 6.0)
-        self.assertEqual(pricing.resolve("kimi-k2.5")["input"], 0.60)
+        cases = [
+            # Anthropic
+            ("claude-fable-5-2", 8.0, 40.0),
+            ("claude-fable-5-1", 10.0, 50.0),
+            ("claude-opus-5-5", 4.0, 20.0),
+            ("claude-opus-5", 5.0, 25.0),
+            ("claude-opus-4-7", 5.0, 25.0),
+            ("claude-opus-4-8", 5.0, 25.0),
+            ("claude-opus-4-6", 5.0, 25.0),
+            ("claude-4.6-opus", 5.0, 25.0),
+            ("claude-opus-4-20250514", 15.0, 75.0),
+            ("claude-3-opus-20240229", 15.0, 75.0),
+            ("claude-sonnet-5-5", 2.0, 10.0),
+            ("claude-5.5-sonnet", 2.0, 10.0),
+            ("claude-sonnet-4-5-20250929", 3.0, 15.0),
+            ("claude-haiku-5-5", 0.10, 0.50),
+            ("claude-haiku-4-5", 1.0, 5.0),
+            ("claude-3-haiku-20240307", 0.25, 1.25),
+            # OpenAI
+            ("gpt-6.2-astra", 8.0, 40.0),
+            ("Astra 6.2", 8.0, 40.0),
+            ("astra-6.2", 8.0, 40.0),
+            ("gpt-astra-6.2", 8.0, 40.0),
+            ("gpt-6.2-sol", 2.0, 10.0),
+            ("Sol 6.2", 2.0, 10.0),
+            ("gpt-6.1-terra", 1.0, 5.0),
+            ("gpt-6-luna", 0.10, 0.50),
+            ("Luna 6", 0.10, 0.50),
+            ("gpt-5.6-sol", 4.0, 20.0),
+            ("gpt-5.6-luna", 0.20, 1.20),
+            ("gpt-5.5", 5.0, 30.0),
+            ("gpt-5.4-pro", 30.0, 180.0),
+            ("gpt-5.4", 2.50, 15.0),
+            ("gpt-5.3-codex", 1.75, 14.0),
+            ("gpt-5.3-codex-spark", 1.75, 14.0),
+            ("gpt-5.3-codex-mini", 0.25, 2.0),
+            ("gpt-5-mini", 0.25, 2.0),
+            ("codex-mini-latest", 1.50, 6.0),
+            ("gpt-oss-120b", 0.15, 0.60),
+            ("chatgpt-4o-latest", 2.50, 10.0),
+            ("gpt-4-turbo", 10.0, 30.0),
+            ("o3-deep-research", 10.0, 40.0),
+            ("o4-mini-deep-research", 2.0, 8.0),
+            ("o4-mini", 1.10, 4.40),
+            # Google Gemini
+            ("gemini-4-carbon", 2.0, 10.0),
+            ("gemini-4-argon", 2.0, 10.0),
+            ("gemini-4-neon", 3.0, 15.0),
+            ("gemini-4-hydrogen", 1.50, 7.50),
+            ("gemini-3.8-flash", 0.75, 3.75),
+            ("gemini-3.7-flash", 0.75, 3.75),
+            ("gemini-3.6-flash", 0.75, 3.75),
+            ("gemini-3.5-flash-lite", 0.30, 2.50),
+            ("gemini-3.5-flash", 1.50, 9.0),
+            ("gemini-3.1-flash-lite-preview", 0.25, 1.50),
+            ("models/gemini-3.1-pro-preview", 2.0, 12.0),
+            ("gemini-2.5-flash", 0.30, 2.50),
+            ("gemini-2.0-flash-lite", 0.075, 0.30),
+            ("gemini-1.5-pro", 1.25, 5.0),
+            # xAI / Kimi / DeepSeek / MiniMax / GLM / Qwen
+            ("grok-4.6", 2.0, 6.0),
+            ("grok-4.20", 1.25, 2.50),
+            ("grok-4.1-fast", 0.20, 0.50),
+            ("grok-code-fast-1", 0.20, 1.50),
+            ("grok-build-0.1", 1.0, 2.0),
+            ("grok-2", 2.0, 10.0),
+            ("kimi-k3.1-pro", 2.0, 10.0),
+            ("kimi-k2.7-code", 0.95, 4.0),
+            ("kimi-k2.5", 0.60, 2.50),
+            ("kimi-for-coding", 0.60, 2.50),
+            ("moonshot-v1-32k", 1.0, 3.0),
+            ("deepseek-v4-pro", 0.66, 1.98),
+            ("deepseek-flash", 0.15, 0.60),
+            ("deepseek-r1", 0.55, 2.19),
+            ("deepseek-chat", 0.28, 0.42),
+            ("MiniMax-M3.1-Flash", 0.15, 0.60),
+            ("MiniMax-M2.5", 0.30, 1.20),
+            ("glm-5.3", 1.40, 4.40),
+            ("glm-5", 1.0, 3.20),
+            ("glm-4.7-flash", 0.0, 0.0),
+            ("qwen4-max", 1.50, 4.50),
+            ("qwen3.8-flash", 0.15, 0.47),
+            ("qwen3-coder-plus", 1.0, 5.0),
+            # Normalization formats (paths, Bedrock prefixes, enums, annotations)
+            ("publishers/google/models/gemini-4-carbon", 2.0, 10.0),
+            ("us.anthropic.claude-opus-4-7-v1:0", 5.0, 25.0),
+            ("openrouter/openai/gpt-6.2-sol", 2.0, 10.0),
+            ("MODEL_GEMINI_3_8_FLASH", 0.75, 3.75),
+            ("Claude Opus 4.7 (Thinking)", 5.0, 25.0),
+            ("claude-opus-4-6@20260205", 5.0, 25.0),
+        ]
+        for name, inp, out in cases:
+            with self.subTest(model=name):
+                rate = pricing.resolve(name)
+                self.assertIsNotNone(rate)
+                self.assertEqual(rate["input"], inp)
+                self.assertEqual(rate["output"], out)
+
         # Unknown or placeholder model names must never receive fabricated prices.
-        for unknown in ("gpt-fictional", "AGY #42 · 型号未确认", "型号未记录", "", None):
+        for unknown in (
+            "gpt-fictional",
+            "fictional-local-model",
+            "cyber-muyu-pro-max",
+            "AGY #42 · 型号未确认",
+            "型号未记录",
+            "",
+            None,
+        ):
             self.assertIsNone(pricing.resolve(unknown))
+
+    def test_gpt6_standard_cache_write_and_model_generations(self):
+        for model, expected in (
+            ("gpt-6-astra", (10, 1, 12.5, 50)),
+            ("gpt-6.2-astra", (8, .4, 10, 40)),
+            ("gpt-6-sol", (2, .2, 2.5, 10)),
+            ("gpt-6.1-sol", (2, .1, 2.5, 10)),
+            ("gpt-6.1-terra", (1, .05, 1.25, 5)),
+            ("gpt-6-luna", (.1, .01, .125, .5)),
+        ):
+            with self.subTest(model=model):
+                rate = pricing.resolve(model)
+                self.assertEqual(tuple(rate[k] for k in pricing.RATE_FIELDS), expected)
+        self.assertIsNone(pricing.resolve("gpt-6.9-astra"))
+        self.assertIsNone(pricing.resolve("Astra 6.9"))
 
     def test_cost_parts_and_cache_savings(self):
         rate = pricing.resolve("claude-sonnet-4-6")

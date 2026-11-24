@@ -1,5 +1,6 @@
 import sqlite3
 import unittest
+from contextlib import closing
 from pathlib import Path
 from unittest.mock import patch
 
@@ -19,7 +20,7 @@ class QuotaTests(unittest.TestCase):
         self.assertEqual(quota.windows({"limitId": "other", "primary": {"usedPercent": 0}}), [])
 
     def test_failed_refresh_preserves_only_matching_profile_snapshot(self):
-        with sqlite3.connect(":memory:") as db:
+        with closing(sqlite3.connect(":memory:")) as db:
             db.execute("CREATE TABLE codex_search_settings(key TEXT PRIMARY KEY,value TEXT)")
             with db:
                 save(db, "home", str(Path.cwd() / "fictional-profile-a"))

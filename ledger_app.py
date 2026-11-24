@@ -2,6 +2,7 @@
 
 import argparse
 import csv
+import hashlib
 import io
 import json
 import socket
@@ -25,6 +26,17 @@ from ledger.imports import import_file, undo
 ROOT = Path(__file__).resolve().parent
 PORT = 17863
 VERSION = "1.7-preview"
+
+
+def code_build():
+    h = hashlib.sha256()
+    for path in [Path(__file__).resolve(), *sorted((ROOT / "ledger").glob("*.py"))]:
+        h.update(path.name.encode())
+        h.update(path.read_bytes())
+    return h.hexdigest()[:16]
+
+
+BUILD = code_build()
 STATIC = {
     "/": ("index.html", "text/html"),
     "/style.css": ("style.css", "text/css"),
@@ -49,6 +61,7 @@ class Collector:
     def __init__(self, database):
         self.file = database
         self.lock = threading.Lock()
+        self.last_done = 0.0
         self.state = {"running": False, "finished": None}
 
     def update(self, **values):
@@ -66,13 +79,78 @@ class Collector:
             self.state.update(running=True, error=None, done=0, files=0, entry=None)
         threading.Thread(target=self.run, daemon=True).start()
 
+    def maybe_start(self, min_gap=8.0):
+        with self.lock:
+            if self.state["running"] or (self.last_done and time.monotonic() - self.last_done < min_gap):
+                return False
+            self.state.update(running=True, error=None, done=0, files=0, entry=None)
+        threading.Thread(target=self.run, daemon=True).start()
+        return True
+
     def run(self):
         try:
             self.update(report=sync(self.file, self.update))
         except Exception as err:
             self.update(error="采集未完成，可再次更新。错误类型 " + type(err).__name__)
         finally:
-            self.update(running=False, finished=datetime.now(timezone.utc).isoformat())
+            with self.lock:
+                self.last_done = time.monotonic()
+                self.state.update(running=False, finished=datetime.now(timezone.utc).isoformat())
+
+
+class QuotaRefresher:
+    def __init__(self, database):
+        self.file = database
+        self.lock = threading.Lock()
+        self.running = False
+        self.last_done = 0.0
+
+    def snapshot(self):
+        with self.lock:
+            return {"running": self.running}
+
+    def start(self, force=False):
+        with self.lock:
+            if self.running:
+                return False
+            self.running = True
+        threading.Thread(target=self.run, args=(force,), daemon=True).start()
+        return True
+
+    def maybe_start(self, min_gap=30.0):
+        with self.lock:
+            if self.running or (self.last_done and time.monotonic() - self.last_done < min_gap):
+                return False
+            self.running = True
+        threading.Thread(target=self.run, args=(False,), daemon=True).start()
+        return True
+
+    def run(self, force=False):
+        try:
+            snap_dir = self.file.parent / "quota-snapshots"
+            agy_dir = self.file.parent / "agy-quota"
+            with closing(connect(self.file)) as db:
+                try:
+                    quota.refresh(db, force=force)
+                except (ValueError, OSError, sqlite3.Error):
+                    pass
+                if not codex_search.setting(db, "codex_only", False):
+                    try:
+                        agy_quota.snapshot(db, agy_dir, refresh=True, force=force)
+                    except (ValueError, OSError, sqlite3.Error):
+                        pass
+                    for key, info in subscriptions.catalogue(db, snap_dir).items():
+                        if info.get("automatic"):
+                            try:
+                                subscriptions.handle(db, key, snap_dir, write=True, force=force)
+                            except (ValueError, OSError, sqlite3.Error):
+                                pass
+        except (ValueError, OSError, sqlite3.Error):
+            pass
+        finally:
+            with self.lock:
+                self.running = False
+                self.last_done = time.monotonic()
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -180,12 +258,21 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/sync":
                 self.server.job.start()
                 return self.send_json(self.server.job.snapshot())
+            if path == "/api/widget/refresh":
+                if args.get("period") == "quota":
+                    qjob = getattr(self.server, "quota_job", None)
+                    if qjob is not None:
+                        qjob.start(force=True)
+                        return self.send_json({"ok": True, "syncing": qjob.snapshot()["running"]})
+                    return self.send_json({"ok": True, "syncing": False})
+                self.server.job.start()
+                return self.send_json({"ok": True, "syncing": self.server.job.snapshot()["running"]})
             if path == "/api/stop":
                 self.send_json({"ok": True})
                 threading.Thread(target=self.server.shutdown, daemon=True).start()
                 return
         if not write and path == "/api/instance":
-            return self.send_json({"app": "meter", "version": VERSION, "instance": self.server.identity})
+            return self.send_json({"app": "meter", "version": VERSION, "build": BUILD, "instance": self.server.identity})
         with closing(connect(self.server.job.file)) as db:
             if path == "/api/appearance":
                 prefs = appearance.write(db, json.loads(body)) if write else appearance.read(db)
@@ -199,16 +286,38 @@ class Handler(BaseHTTPRequestHandler):
                 open_widget(self.server.server_port, self.server.job.file, zone)
                 return self.send_json({"ok":True})
             if path == "/api/widget" and not write:
-                data = {"appearance":appearance.read(db)}
-                if args.get("period") == "quota":
-                    snapshots = [("Codex",quota.cached(db))]
-                    if not codex_search.setting(db,"codex_only",False):
-                        snapshots.append(("Antigravity",codex_search.setting(db,"agy_quota_snapshot")))
-                        snapshots.extend((s[0],codex_search.setting(db,"subscription:" + k)) for k,s in subscriptions.SERVICES.items())
-                    data["quotas"] = [{"name":name, "at":snap["at"], "windows":snap["windows"]} for name,snap in snapshots if snap]
+                period = args.get("period", "today")
+                data = {"appearance": appearance.read(db)}
+                if period == "quota":
+                    qjob = getattr(self.server, "quota_job", None)
+                    if getattr(self.server, "auto_sync", False) and qjob is not None:
+                        qjob.maybe_start(min_gap=30.0)
+                    snapshots = [("Codex", quota.cached(db))]
+                    if not codex_search.setting(db, "codex_only", False):
+                        snapshots.append(("Antigravity", codex_search.setting(db, "agy_quota_snapshot")))
+                        snapshots.extend(
+                            (s[0], codex_search.setting(db, "subscription:" + k))
+                            for k, s in subscriptions.SERVICES.items()
+                        )
+                    data["quotas"] = [
+                        {"name": name, "at": snap["at"], "windows": snap["windows"]}
+                        for name, snap in snapshots
+                        if snap
+                    ]
+                    data["syncing"] = qjob.snapshot()["running"] if qjob is not None else False
                 else:
-                    view = query.view(db, {"period":args.get("period","today"),"tz":args.get("tz","UTC")})
-                    data.update(totals=view["totals"],top=next((r["model"] for r in view["rank"] if r["total"] is not None),None),scope=view["scope"],value=view["totals"].get("value"),value_n=view["totals"].get("value_n",0))
+                    if getattr(self.server, "auto_sync", False):
+                        self.server.job.maybe_start(min_gap=8.0)
+                    view = query.view(db, {"period": period, "tz": args.get("tz", "UTC")})
+                    data.update(
+                        totals=view["totals"],
+                        top=next((r["model"] for r in view["rank"] if r["total"] is not None), None),
+                        scope=view["scope"],
+                        value=view["totals"].get("value"),
+                        value_n=view["totals"].get("value_n", 0),
+                        revision=query.revision(db),
+                        syncing=self.server.job.snapshot()["running"],
+                    )
                 return self.send_json(data)
             if path.startswith("/api/subscription/"):
                 key = path.removeprefix("/api/subscription/")
@@ -328,7 +437,7 @@ def serve(args, file):
                 continue
             if not isinstance(reply, dict) or reply.get("app") != "meter" or reply.get("instance") != identity:
                 continue
-            if reply.get("version") == VERSION:
+            if reply.get("version") == VERSION and reply.get("build") == BUILD:
                 if args.widget:
                     open_widget(port, file)
                 elif not args.no_browser:
@@ -336,7 +445,7 @@ def serve(args, file):
                 print(f"账本已运行 http://127.0.0.1:{port}/")
                 return
             hint = "同一账本有其他版本正在运行。请关闭旧服务窗口，再重新启动。"
-            if reply.get("version") != "1.6":
+            if reply.get("version") not in ("1.6", VERSION):
                 raise SystemExit(hint)
             try:
                 if local_request(port, "/api/status").get("running") is not False:
@@ -363,12 +472,13 @@ def serve(args, file):
         server.server_close()
         raise
     server.identity, server.job = identity, Collector(file)
+    server.quota_job, server.auto_sync = QuotaRefresher(file), not args.no_sync
     if not args.no_sync:
 
         def periodic():
             while True:
                 server.job.start()
-                time.sleep(300)
+                time.sleep(30)
 
         threading.Thread(target=periodic, daemon=True).start()
     link = f"http://127.0.0.1:{server.server_port}/"
