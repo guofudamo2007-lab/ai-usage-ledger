@@ -238,7 +238,7 @@ pub fn notes(c: &Connection, q: &Q) -> Result<Value> {
     }
     Ok(json!(list))
 }
-pub fn save_note(c: &Connection, b: &Value) -> Result<Value> {
+pub fn prepare_note(b: &Value) -> Result<Value> {
     let mut v = json!({});
     for k in [
         "kind",
@@ -324,6 +324,11 @@ pub fn save_note(c: &Connection, b: &Value) -> Result<Value> {
         .map(str::to_owned)
         .unwrap_or_else(|| identity((now(), &v)));
     v["id"] = json!(id);
+    Ok(v)
+}
+pub fn save_note(c: &Connection, b: &Value) -> Result<Value> {
+    let v = prepare_note(b)?;
+    let id = string(&v, "id");
     c.execute(
         "insert or replace into notes values(?,?)",
         params![id, v.to_string()],

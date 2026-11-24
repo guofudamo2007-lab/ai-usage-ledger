@@ -73,6 +73,7 @@ pub fn init(p: &Path) -> Result<()> {
  create table if not exists contributions(batch integer,line integer,uid text,payload text,outcome text,primary key(batch,line));
  create index if not exists contribution_uid on contributions(uid);
  create table if not exists notes(id text primary key,payload text not null);
+ create table if not exists original_api(uid text primary key,payload text not null);
  create table if not exists aliases(raw text primary key, logical text not null);
  create table if not exists annotations(uid text primary key, project text, account text, task text);
  create table if not exists changes(stamp text,target text,action text,previous text,value text,reason text);
@@ -191,14 +192,14 @@ pub fn row(r: &Row) -> rusqlite::Result<Event> {
     })
 }
 pub fn get(c: &Connection, id: &str) -> Result<Option<Event>> {
-    Ok(c.query_row("select * from events where uid=?", [id], row)
+    Ok(c.prepare_cached("select * from events where uid=?")?
+        .query_row([id], row)
         .optional()?)
 }
 pub fn put(c: &Connection, e: &Event) -> Result<()> {
     let u = &e.usage;
-    c.execute(
-        "insert or replace into events values(?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        params![
+    c.prepare_cached("insert or replace into events values(?,?,?,?,?,?,?,?,?,?,?,?,?)")?
+        .execute(params![
             e.uid,
             e.ts,
             e.entry,
@@ -212,8 +213,7 @@ pub fn put(c: &Connection, e: &Event) -> Result<()> {
             u.cache_read,
             u.cache_write,
             u.reasoning
-        ],
-    )?;
+        ])?;
     Ok(())
 }
 pub fn merge(a: &Event, b: &Event, mirror: bool) -> Result<Event> {

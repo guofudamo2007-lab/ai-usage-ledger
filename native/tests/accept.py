@@ -189,6 +189,23 @@ def run(exe, root):
                         old.terminate()
                         old.wait()
         print("PASS simultaneous Python and Rust services, separate databases and independent shutdown",flush=True)
+        p=start()
+        from original_import import check
+        check(req,sync,pyfile,rows,model,base,"--ui" in sys.argv)
+        req("/api/stop",{})
+        p.wait(8)
+        p=start()
+        assert req("/api/view?period=all")["totals"]["total"]==430
+        req("/api/stop",{})
+        p.wait(8)
+        args.extend(["--data-dir",str(root/"先导入再采集")])
+        p=start()
+        assert req("/api/original/import",{"path":str(pyfile)})["usage"]["added"]==5
+        assert req("/api/view?period=all")["totals"]["total"]==310
+        sync()
+        sync()
+        assert req("/api/view?period=all")["totals"]["total"]==430
+        print("PASS import into empty Rust ledger followed by repeated local scans",flush=True)
         print("PASS native executable, Codex and mirrored AGY, API import/undo, UID, totals, coverage, ranking, prices, export, restart"+(", Chromium + WPF" if "--ui" in sys.argv else ""),flush=True)
     finally:
         if p.poll() is None:

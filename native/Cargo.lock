@@ -352,7 +352,7 @@ dependencies = [
 
 [[package]]
 name = "kedu-native"
-version = "0.1.0"
+version = "0.2.0-preview"
 dependencies = [
  "anyhow",
  "chrono",
@@ -366,6 +366,7 @@ dependencies = [
  "sha2",
  "tiny_http",
  "walkdir",
+ "windows-sys",
  "zstd",
 ]
 

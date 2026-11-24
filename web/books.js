@@ -1,4 +1,4 @@
-import {manage,previewFile} from "./review.js";
+import {manage,previewFile,openOriginalImport} from "./review.js";
 import {
   $,
   $$,
@@ -23,7 +23,7 @@ const modes = {
 export function renderSources(
   root,
   rows,
-  { tz, pageHead, syncButton, doSync, refresh, diagnosis },
+  { tz, pageHead, syncButton, doSync, refresh, diagnosis, originalImport },
 ) {
   function item(r) {
     let status;
@@ -59,6 +59,7 @@ export function renderSources(
       syncButton(),
     ) +
     `<div class="import-panel"><div><h3>导入逐请求用量</h3><p>选择本地 JSON 或 CSV。账本按原始请求标识去重。</p></div><button id="pick" class="outline">${icon("upload")}选择文件</button><input type="file" id="import-file" accept=".csv,.json,application/json,text/csv" hidden></div>
+    ${originalImport ? '<div class="import-panel"><div><h3>从原版导入账本</h3><p>带入历史用量、手工账目和自定义单价。</p></div><button id="original-import" class="outline">导入原版账本</button></div>' : ""}
     <details class="guide management"><summary>核对导入批次、观测冲突与项目归并</summary><div class="review-body"></div></details>
     <details class="guide"><summary>查看文件格式与计数口径</summary><p>标准明细每行一个请求，必填原始请求标识、入口和带时区的发生时间。模型缺失将单独列出。输入包含缓存，输出包含推理。无记录的字段留空或填 null。</p>
     <pre>schema,entry,request_id,timestamp,model,project,total,input,output,cache_read,cache_write,reasoning</pre>
@@ -74,6 +75,7 @@ export function renderSources(
       )
       .join("")}<button class="outline" id="stop-server">停止本地服务</button>`;
   manage(root,refresh);
+  if (originalImport) $("#original-import",root).onclick=()=>openOriginalImport(refresh);
   const search = $(".codex-search", root), body = $(".search-body", search);
   search.ontoggle = async () => {
     if (!search.open) return;

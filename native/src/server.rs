@@ -115,7 +115,7 @@ impl App {
         let data = || -> Result<Value> { Ok(serde_json::from_slice(body)?) };
         match (path, write) {
             ("/api/instance", false) => {
-                Ok(json!({"app":"kedu-native","version":"0.1.0","instance":self.id}))
+                Ok(json!({"app":"kedu-native","version":env!("CARGO_PKG_VERSION"),"instance":self.id}))
             }
             ("/api/status", false) => {
                 let mut v = self.scan.lock().unwrap().clone();
@@ -144,6 +144,7 @@ impl App {
             ("/api/view", false) => query::view(c, q, false),
             ("/api/options", false) => {
                 let mut v = manage::options(c)?;
+                v["original_import"] = json!(true);
                 v["subscriptions"] = crate::subscriptions::catalog(c, self.db.parent().unwrap())?;
                 Ok(v)
             }
@@ -304,6 +305,11 @@ impl App {
             ("/api/undo", true) => {
                 let b = data()?;
                 imports::undo(c, b["batch"].as_i64().context("缺少批次")?)
+            }
+            ("/api/original/pick", true) => crate::legacy::pick(),
+            ("/api/original/import", true) => {
+                let b = data()?;
+                crate::legacy::import(c, b["path"].as_str().context("请选择原版账本文件")?)
             }
             ("/api/notes", false) => manage::notes(c, q),
             ("/api/notes", true) => manage::save_note(c, &data()?),

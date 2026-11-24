@@ -1,6 +1,6 @@
 use super::db::*;
 use anyhow::{ensure, Context, Result};
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::{json, Value};
 fn count(v: &Value) -> Result<Option<i64>> {
     Ok(if v.is_null() {
@@ -279,7 +279,14 @@ pub fn undo(c: &mut Connection, id: i64) -> Result<Value> {
         let mut q = tx.prepare("select distinct uid from contributions where batch=?")?;
         for id in q.query_map([id], |r| r.get::<_, String>(0))? {
             let uid = id?;
-            let mut keep = None;
+            let base: Option<String> = tx
+                .query_row(
+                    "select payload from original_api where uid=?",
+                    [&uid],
+                    |r| r.get(0),
+                )
+                .optional()?;
+            let mut keep: Option<Event> = base.as_deref().map(serde_json::from_str).transpose()?;
             let mut s=tx.prepare("select payload from contributions join batches on batches.id=batch where uid=? and undone is null order by batch,line")?;
             for p in s.query_map([&uid], |r| r.get::<_, String>(0))? {
                 let e: Event = serde_json::from_str(&p?)?;

@@ -694,6 +694,7 @@ async function render() {
       chartObserver = null;
       disposeSelects(main);
       renderSources(main, rows, {
+        originalImport: registry.original_import,
         diagnosis:state.diagnosis,
         tz: state.tz,
         pageHead,

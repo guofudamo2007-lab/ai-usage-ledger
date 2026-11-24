@@ -5,9 +5,9 @@
 ## Windows x64 下载
 
 - **[下载原版便携包（ZIP）](https://github.com/guofudamo2007-lab/ai-usage-ledger/releases/download/v1.7-preview/Meter-1.7-preview-Windows-x64.zip)** · **1.7-preview**　想用视频同款，或继续使用已有账本，选原版。完整解压到可写目录，双击 `启动账本.cmd`。[使用与升级说明](使用说明.md)
-- **[下载 Rust 单文件版（EXE）](https://github.com/guofudamo2007-lab/ai-usage-ledger/releases/download/rust-v0.1.0-preview/Kedu-Rust-Windows-x64.exe)** · **0.1.0 预览版**　想只下载一个文件、双击就用，选 Rust 版。把 EXE 放进可写目录即可，无需安装 Rust 或 Python，也带桌面小组件。[Rust 版使用说明](native/README.md)
+- **[下载 Rust 单文件版（EXE）](https://github.com/guofudamo2007-lab/ai-usage-ledger/releases/download/rust-v0.2.0-preview/Kedu-Rust-Windows-x64.exe)** · **0.2.0-preview**　想只下载一个文件、双击就用，选 Rust 版。把 EXE 放进可写目录即可，无需安装 Rust 或 Python，也带桌面小组件。[Rust 版使用说明](native/README.md)
 
-**两版可以同时运行，账本各自独立。** 原版默认保存在 `private/`，Rust 版保存在 EXE 旁的 `rust-private/`。Rust 版首次启动会重新采集本机仍可读取的日志。只留在原账本里的历史、手工账目、自定义单价和更正记录不会自动迁入或同步。
+**两版可以同时运行，账本各自独立。** 原版默认使用 `private/`，Rust 版使用 EXE 旁的 `rust-private/`。想把旧账带过来，先停止原版服务，再到 Rust 版「数据接入 → 导入原版账本」选择 `private/ledger.sqlite3`。历史用量、手工账目和自定义单价都会按记录核对；源文件只读，重复导入会去重。[导入步骤](native/README.md#带入原版账本)
 
 ![刻度总览，图中模型、项目与用量均为虚构演示数据](docs/overview-fictional.png)
 

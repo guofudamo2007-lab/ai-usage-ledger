@@ -11,6 +11,40 @@ function sheet(title, content) {
   return box;
 }
 
+export function openOriginalImport(refresh) {
+  const box = sheet("从原版导入账本", `
+    <p>先在原版「数据接入」停止本地服务，再选择 <code>private/ledger.sqlite3</code>，也可以使用已关闭的完整备份。</p>
+    <form><label>原版账本文件<input name="path" required autocomplete="off" placeholder="选择文件或粘贴完整路径"></label>
+    <button class="outline" type="button" data-pick>选择文件…</button>
+    <button class="primary" type="submit">导入到 Rust 版</button></form>
+    <p class="muted">只读原文件。相同记录去重，已知值冲突时保留 Rust 版。</p>
+    <div role="status" data-result></div>`);
+  const form = $("form", box), pick = $("[data-pick]", form), result = $("[data-result]", box);
+  pick.onclick = async () => {
+    pick.disabled = true;
+    try {
+      const path = await post("/api/original/pick", {});
+      if (path) form.elements.path.value = path;
+    } catch (err) { result.textContent = err.message; }
+    finally { pick.disabled = false; }
+  };
+  form.onsubmit = async e => {
+    e.preventDefault();
+    const submit = e.submitter || $("button[type=submit]", form);
+    submit.disabled = pick.disabled = true;
+    result.textContent = "正在核对并导入…";
+    try {
+      const report = await post("/api/original/import", {path: form.elements.path.value});
+      result.innerHTML = "<h3>导入完成</h3>" + [["usage","历史用量"],["notes","手工账目"],["prices","自定义单价"]].map(([key,label]) => {
+        const row = report[key];
+        return `<p><b>${label}</b>　新增 ${full(row.added)} · 已有 ${full(row.existing)}${row.enriched ? " · 补全 "+full(row.enriched) : ""} · 跳过 ${full(row.skipped)}</p>`;
+      }).join("") + (report.details.length ? `<details><summary>查看跳过原因（最多 30 条）</summary>${report.details.map(d=>`<p>${esc(d)}</p>`).join("")}</details>` : "");
+      await refresh().catch(err=>toast(err.message));
+    } catch (err) { result.textContent = "未写入本次导入。"+err.message; }
+    finally { submit.disabled = pick.disabled = false; }
+  };
+}
+
 export async function inspect(uid, refresh) {
   try {
     const d = await api("/api/evidence?uid=" + encodeURIComponent(uid));

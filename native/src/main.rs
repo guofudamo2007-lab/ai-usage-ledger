@@ -4,6 +4,7 @@ mod collect;
 mod db;
 mod discovery;
 mod imports;
+mod legacy;
 mod manage;
 mod query;
 mod quota;
