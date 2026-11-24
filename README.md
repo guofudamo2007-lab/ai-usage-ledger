@@ -9,9 +9,11 @@
 
 **两版可以同时运行，账本各自独立。** 原版默认使用 `private/`，Rust 版使用 EXE 旁的 `rust-private/`。想把旧账带过来，先停止原版服务，再到 Rust 版「数据接入 → 导入原版账本」选择 `private/ledger.sqlite3`。历史用量、手工账目和自定义单价都会按记录核对；源文件只读，重复导入会去重。[导入步骤](native/README.md#带入原版账本)
 
-![刻度总览，图中模型、项目与用量均为虚构演示数据](docs/overview-fictional.png)
+## Rust 0.2.0-preview 界面预览
 
-预览使用独立的虚构账本。可以看日期选中、趋势悬停、排序和模型明细的实际操作。[交互录屏](docs/interaction-fictional.webp) · [窄窗口全图](docs/narrow-fictional.png)
+下图使用虚构演示数据，展示近 7 天的用量、等效 API 价值和模型排行。[窄窗口全图](docs/rust-020-narrow.jpg)
+
+![Rust 单文件版用量总览，虚构演示数据](docs/rust-020-overview.jpg)
 
 **1.7-preview** 支持等效 API 价值、自定义模型单价、来源健康诊断、导入预检与批次撤销、项目归并和逐条更正。[稳定版下载](https://github.com/guofudamo2007-lab/ai-usage-ledger/releases/latest) · [升级与核对说明](使用说明.md#核对与更正)
 
